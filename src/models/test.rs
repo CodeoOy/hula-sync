@@ -8,5 +8,6 @@ pub type Pool = r2d2::Pool<ConnectionManager<PgConnection>>;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TestData {
+	pub id: uuid::Uuid,
 	pub test: String,
 }

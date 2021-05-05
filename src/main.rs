@@ -38,7 +38,7 @@ async fn main() -> std::io::Result<()> {
 				web::scope("/api")
 					.service(
 						web::resource("/test")
-						.route(web::get().to(handlers::test::get_test))
+						.route(web::get().to(handlers::test_handler::get_test))
 					)
 			)
 			.service(web::resource("/").route(web::get().to(|req: HttpRequest| {

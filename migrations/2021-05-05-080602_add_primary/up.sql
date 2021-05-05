@@ -1,0 +1,4 @@
+-- Your SQL goes here
+
+ALTER TABLE testdata
+ADD COLUMN id UUID NOT NULL PRIMARY KEY;
