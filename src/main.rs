@@ -8,6 +8,8 @@ use diesel::r2d2::{self, ConnectionManager};
 
 mod models;
 mod handlers;
+mod schema;
+mod errors;
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
