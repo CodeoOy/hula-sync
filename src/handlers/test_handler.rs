@@ -71,7 +71,13 @@ pub async fn get_test(
 
 pub async fn get_HubSpotHeader(
 ) -> Result<Header, &'static str> {
-    let request_url = format!("https://api.hubapi.com/deals/v1/deal/paged?hapikey=66c584ad-845c-43c4-a86c-d59e559b972b&properties=dealname");
+
+	let hubspot_key =
+		std::env::var("HUBSPOT_API_KEY").expect("HUBSPOT_API_KEY must be set");
+
+    let request_url = format!("https://api.hubapi.com/deals/v1/deal/paged?hapikey={}&properties=dealname",
+		hubspot_key);
+		
     println!("Calling {}", request_url);
 
 	let response = reqwest::get(&request_url).await;
