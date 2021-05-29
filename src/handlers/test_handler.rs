@@ -90,6 +90,8 @@ pub async fn get_HubSpotHeader(
 		},
     };
 
+	// println!("...Response is: {:?}", &response);
+	
     let jiison = response.json().await;
 
 	let mut jiison2 = match jiison {
@@ -122,7 +124,13 @@ pub async fn get_HulaProjects(
 		},
     };
 
-    let jiison = response.json().await;
+	println!("...Response is: {:?}", &response);
+
+	if response.status() == 204 {
+		return Ok(Vec::<HulaProject>::new());
+	}
+
+	let jiison = response.json().await;
 
 	let mut jiison2 = match jiison {
         Ok(file) => file,
