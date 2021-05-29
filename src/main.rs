@@ -42,6 +42,10 @@ async fn main() -> std::io::Result<()> {
 						web::resource("/test")
 						.route(web::get().to(handlers::test_handler::get_test))
 					)
+					.service(
+						web::resource("/odoo")
+						.route(web::get().to(handlers::odoo_handler::get_test))
+					)
 			)
 			.service(web::resource("/").route(web::get().to(|req: HttpRequest| {
 				println!("HTTP REQ:\n{:?}\n", req);
