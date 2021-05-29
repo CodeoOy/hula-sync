@@ -70,7 +70,7 @@ pub async fn get_test(
 	println!("Henlo world");
 
 	let mut a = Command::new("python3")
-        .arg("/home/pekka/test/test1.py")
+        .arg("src/python/test1.py")
         //.arg("-a")
         //.spawn()
 		.output()
