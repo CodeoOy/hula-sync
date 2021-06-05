@@ -1,16 +1,12 @@
-use actix_web::{error::BlockingError, web, HttpResponse};
-use diesel::{prelude::*, PgConnection};
-use serde::{Serialize, Deserialize};
+use actix_web::{/*error::BlockingError, */web, HttpResponse};
 
-use crate::errors::ServiceError;
-use crate::models::test::{Pool, TestData};
-
-use reqwest::{Error, Response};
-
-use std::iter::Iterator;
+/*use crate::errors::ServiceError;*/
+use crate::models::odoo_project::{Pool /*, TestData*/};
+use crate::modules::hubspot::hubspot_module::do_process;
 
 use tokio;
 
+/*
 #[derive(Deserialize, Debug)]
 struct Header {
     deals: Vec<Deal>,
@@ -37,6 +33,7 @@ struct HulaProject {
     id: String,
     name: String,
 }
+*/
 
 #[tokio::main]
 pub async fn get_test(
@@ -44,7 +41,9 @@ pub async fn get_test(
 ) -> HttpResponse {
 	println!("Henlo world");
 
-	let my = get_HubSpotHeader().await;
+	let _result = do_process(pool).await;
+
+/*	let my = get_HubSpotHeader().await;
 
 	let mut my = match my {
         Ok(file) => file,
@@ -65,10 +64,11 @@ pub async fn get_test(
     };
 
 	update_HulaProjects(my, my2).await;
-
+*/
 	HttpResponse::Ok().finish()
 }
 
+/*
 pub async fn get_HubSpotHeader(
 ) -> Result<Header, &'static str> {
 
@@ -171,3 +171,4 @@ async fn update_HulaProjects(
 	Ok(())
 }
 
+*/

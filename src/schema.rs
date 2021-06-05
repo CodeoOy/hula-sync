@@ -1,6 +1,9 @@
 table! {
-    testdata (id) {
+    odoo_projects (id) {
         id -> Uuid,
-		test -> Nullable<Varchar>,
+        hula_id -> Uuid,
+        odoo_id -> Int4,
+        name -> Varchar,
+        updated_by -> Varchar,
     }
 }

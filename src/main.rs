@@ -1,8 +1,8 @@
 #[macro_use]
 extern crate diesel;
 
-use actix_web::http::{header, Method, StatusCode};
-use actix_web::{get, middleware, web, App, HttpRequest, HttpResponse, HttpServer, Result};
+use actix_web::http::{header/*, Method, StatusCode */};
+use actix_web::{/*get, */middleware, web, App, HttpRequest, HttpResponse, HttpServer/*, Result*/};
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager};
 
@@ -10,6 +10,8 @@ mod models;
 mod handlers;
 mod schema;
 mod errors;
+mod modules;
+mod hulautils;
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
@@ -23,10 +25,10 @@ async fn main() -> std::io::Result<()> {
 
 	// create db connection pool
 	let manager = ConnectionManager::<PgConnection>::new(database_url);
-	let pool: models::test::Pool = r2d2::Pool::builder()
+	let pool: models::odoo_project::Pool = r2d2::Pool::builder()
 		.build(manager)
 		.expect("Failed to create pool.");
-	let domain: String = std::env::var("DOMAIN").unwrap_or_else(|_| "localhost".to_string());
+	let _domain: String = std::env::var("DOMAIN").unwrap_or_else(|_| "localhost".to_string());
 
 	// Start http server
 	HttpServer::new(move || {

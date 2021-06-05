@@ -3,11 +3,14 @@ use diesel::{r2d2::ConnectionManager, PgConnection};
 use serde::{Deserialize, Serialize};
 //use crate::schema::invitations::password_plain;
 
-
 pub type Pool = r2d2::Pool<ConnectionManager<PgConnection>>;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TestData {
+#[derive(Debug, Serialize, Deserialize, Queryable, Insertable)]
+#[table_name = "odoo_projects"]
+pub struct OdooProject {
 	pub id: uuid::Uuid,
-	pub test: String,
+	pub hula_id: uuid::Uuid,
+	pub odoo_id: i32,
+	pub name: String,
+	pub updated_by: String,
 }
