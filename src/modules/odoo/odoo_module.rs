@@ -1,9 +1,8 @@
-use actix_web::{/*error::BlockingError, */web/*, HttpResponse*/};
 use diesel::{prelude::*, PgConnection};
 use serde::{Deserialize};
 
 /*use crate::errors::ServiceError;*/
-use crate::models::odoo_project::{Pool, OdooProject};
+use crate::models::odoo_project::{OdooProject};
 use crate::hulautils::{get_hula_projects, update_hula_project, insert_hula_project, HulaProject};
 
 use std::process::Command;
@@ -17,17 +16,8 @@ pub struct OdooDeal {
     name: String,
 }
 
-/*
-#[tokio::main]
-pub async fn process(
-	pool: web::Data<Pool>
-) {
-	let result = do_process(pool);
-}
-*/
-
 pub async fn do_process(
-	pool: web::Data<Pool>,
+	conn: &PgConnection,
 ) -> Result<(), String> {
 	println!("Henlo world");
 
@@ -36,8 +26,6 @@ pub async fn do_process(
 
 	let hula_projects = get_hula_projects().await;
 	println!("hula gotten");
-
-	let conn: &PgConnection = &pool.get().unwrap();
 
 	let log = get_odoo_log(&conn);
 	println!("logs gotten: {:?}", log);
@@ -98,7 +86,6 @@ fn get_odoo_log(
 ) -> Result<Vec<OdooProject>, String> {
 
 	use crate::schema::odoo_projects::dsl::odoo_projects;
-	/* let conn: &PgConnection = &pool.get().unwrap(); */
 	let items = odoo_projects.load::<OdooProject>(conn).expect("failed to load from db");
 
 	println!("\nGot all logs.\n");
@@ -164,14 +151,13 @@ async fn insert_odoo_log(
 ) -> Result<(), String> {
 
 	use crate::schema::odoo_projects::dsl::odoo_projects;
-	/*let conn: &PgConnection = &pool.get().unwrap(); */
 
 	let new_project = OdooProject {
 		id: uuid::Uuid::new_v4(),
 		hula_id: hula_id,
 		odoo_id: odoo_id,
 		name: name.clone(),
-		updated_by: "email".to_string(),
+		updated_by: "hulasync".to_string(),
 	};
 	println!("Inserting data");
 
@@ -186,39 +172,4 @@ async fn insert_odoo_log(
 	}
 
 	return Err("failed".to_string());
-
-
-
-/*
-	let items = odoo_projects.load::<OdooProject>(conn).expect("failed to load from db");
-
-	println!("\nGot all logs.\n");*/
-	/*return Ok(());*/
 }
-
-/*
-async fn update_HulaProjects(
-	header: Header,
-	projects: Vec<HulaProject>,
-) -> Result<(), &'static str> {
-
-	let mut p = projects.iter(); 
-
-	for deal in &header.deals {
-		if p.any(|x| x.name == deal.properties.dealname.value) == false {
-			println!("INSERT {}", deal.properties.dealname.value);
-		}
-	}
-
-	let mut d = header.deals.iter(); 
-
-	for project in &projects {
-		if d.any(|x| x.properties.dealname.value == project.name) == false {
-			println!("DELETE {}", project.name);
-		}
-	}
-
-	Ok(())
-}
-
-*/

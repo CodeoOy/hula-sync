@@ -1,62 +1,30 @@
 #[macro_use]
 extern crate diesel;
 
-use actix_web::http::{header/*, Method, StatusCode */};
-use actix_web::{/*get, */middleware, web, App, HttpRequest, HttpResponse, HttpServer/*, Result*/};
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager};
 
 mod models;
-mod handlers;
 mod schema;
-mod errors;
 mod modules;
 mod hulautils;
+mod background;
 
-#[actix_rt::main]
+#[tokio::main]
 async fn main() -> std::io::Result<()> {
 	dotenv::dotenv().ok();
 	std::env::set_var(
 		"RUST_LOG",
-		"hula-sync=debug,actix_web=info,actix_server=info",
+		"hula-sync=debug",
 	);
 	env_logger::init();
 	let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
 	// create db connection pool
-	let manager = ConnectionManager::<PgConnection>::new(database_url);
+	let manager = ConnectionManager::<PgConnection>::new(database_url.to_string());
 	let pool: models::odoo_project::Pool = r2d2::Pool::builder()
 		.build(manager)
 		.expect("Failed to create pool.");
-	let _domain: String = std::env::var("DOMAIN").unwrap_or_else(|_| "localhost".to_string());
 
-	// Start http server
-	HttpServer::new(move || {
-	App::new()
-			.data(pool.clone())
-			// enable logger
-			.wrap(middleware::Logger::default())
-			.data(web::JsonConfig::default().limit(4096))
-			// everything under '/api/' route
-			.service(
-				web::scope("/api")
-					.service(
-						web::resource("/test")
-						.route(web::get().to(handlers::test_handler::get_test))
-					)
-					.service(
-						web::resource("/odoo")
-						.route(web::get().to(handlers::odoo_handler::get_test))
-					)
-			)
-			.service(web::resource("/").route(web::get().to(|req: HttpRequest| {
-				println!("HTTP REQ:\n{:?}\n", req);
-				HttpResponse::Found()
-					.header(header::LOCATION, "index.html")
-					.finish()
-			})))
-	})
-	.bind("localhost:8088")?
-	.run()
-	.await
+	Ok(background::start_background(pool.clone()).await)
 }
