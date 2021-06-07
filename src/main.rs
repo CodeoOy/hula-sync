@@ -10,6 +10,22 @@ mod modules;
 mod hulautils;
 mod background;
 
+fn initialize_db(name: &str) {
+	println!("Running database migrations...");
+	let connection = PgConnection::establish(&name).expect(&format!("Error connecting to {}", name));
+
+	let result = diesel_migrations::run_pending_migrations(&connection);
+
+	match result {
+		Ok(_res) => {
+			println!("Migrations done!");
+		}
+		Err(error) => {
+			println!("Database migration error: \n {:#?}", error);
+		}
+	}
+}
+
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
 	dotenv::dotenv().ok();
@@ -19,6 +35,8 @@ async fn main() -> std::io::Result<()> {
 	);
 	env_logger::init();
 	let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+
+	initialize_db(&database_url);
 
 	// create db connection pool
 	let manager = ConnectionManager::<PgConnection>::new(database_url.to_string());
