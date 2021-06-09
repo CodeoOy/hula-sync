@@ -1,5 +1,5 @@
 use diesel::{prelude::*, PgConnection};
-use serde::{Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::models::hubspot_project::{HubspotProject};
 use crate::hulautils::{get_hula_projects, update_hula_project, insert_hula_project, HulaProject};
@@ -29,6 +29,11 @@ pub struct HubspotDealName {
     value: String,
 }
 
+#[derive(Serialize, Debug)]
+pub struct HubspotLimit {
+    after: u64,
+}
+
 pub async fn do_process(
 	conn: &PgConnection,
 ) -> Result<(), String> {
@@ -55,12 +60,16 @@ pub async fn get_hubspot_deals(
 	let hubspot_key =
 		std::env::var("HUBSPOT_API_KEY").expect("HUBSPOT_API_KEY must be set");
 
-    let request_url = format!("https://api.hubapi.com/deals/v1/deal/paged?hapikey={}&properties=dealname",
+    let request_url = format!("https://api.hubapi.com/deals/v1/deal/paged?hapikey={}&properties=dealname&limit=250",
 		hubspot_key);
 		
     println!("Calling {}", request_url);
 
-	let response = reqwest::get(&request_url).await;
+	let client = reqwest::Client::new();
+	let response = client
+		.get(&request_url)
+		.send()
+		.await;
 	
 	let response = match response {
         Ok(file) => file,
