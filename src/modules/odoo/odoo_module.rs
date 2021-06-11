@@ -115,8 +115,8 @@ async fn do_process2(
 			if let Some(b2) = a2 {
 				println!("Some(b2) = {:?}", b2);
 				if b.name != b2.name {
-					println!("updating {} {}", b.id.clone(), log1.name.clone());
-					let _ = update_hula_project(b.id.clone(), log1.name.clone()).await;
+					println!("updating {} {}", b.id.clone(), b2.name.clone());
+					let _ = update_hula_project(b.id.clone(), b2.name.clone()).await;
 				}
 			}			
 		}
