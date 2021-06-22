@@ -22,10 +22,16 @@ pub struct HubspotDeal {
 #[derive(Deserialize, Debug)]
 pub struct HubspotProperties {
     dealname: HubspotDealName,
+    dealstage: HubspotDealStage,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct HubspotDealName {
+    value: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct HubspotDealStage {
     value: String,
 }
 
@@ -60,7 +66,7 @@ pub async fn get_hubspot_deals(
 	let hubspot_key =
 		std::env::var("HUBSPOT_API_KEY").expect("HUBSPOT_API_KEY must be set");
 
-    let request_url = format!("https://api.hubapi.com/deals/v1/deal/paged?hapikey={}&properties=dealname&limit=250",
+    let request_url = format!("https://api.hubapi.com/deals/v1/deal/paged?hapikey={}&properties=dealname&properties=dealstage&limit=250",
 		hubspot_key);
 		
     println!("Calling {}", request_url);
@@ -91,9 +97,13 @@ pub async fn get_hubspot_deals(
 		},
     };
 
-	let header: HubspotHeader = jiison2;
+	let mut header: HubspotHeader = jiison2;
 
 	println!("...Got {}", header.deals.len());
+
+	header.deals.retain(|x| x.properties.dealstage.value == "appointmentscheduled");
+
+	println!("...Filtered. Remaining with {}", header.deals.len());
 
 	Ok(header)
 }
