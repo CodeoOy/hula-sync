@@ -10,6 +10,31 @@ pub struct HulaProject {
     pub name: String,
 }
 
+#[derive(Deserialize, Serialize, Debug)]
+pub struct HulaApiProject {
+    pub name: String,
+    pub is_hidden: bool,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct HulaApiProjectNeed {
+	pub project_id: String,
+	pub count_of_users: i32,
+	pub begin_time: chrono::NaiveDate,
+	pub end_time: Option<chrono::NaiveDate>,
+	pub percentage: Option<i32>,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct HulaApiProjectNeedSkill {
+	pub projectneed_id: uuid::Uuid,
+	pub skill_id: uuid::Uuid,
+	pub skillscopelevel_id: Option<uuid::Uuid>,
+	pub min_years: Option<f64>,
+	pub max_years: Option<f64>,
+	pub mandatory: bool,
+}
+
 pub async fn get_hula_projects(
 ) -> Result<Vec<HulaProject>, &'static str> {
 
@@ -74,9 +99,9 @@ pub async fn insert_hula_project(
 	let request_url = format!("{}/api/projects", hula_url);
     println!("Calling {}", request_url);
 
-	let project = HulaProject {
-		id: "dummy".to_string(),
+	let project = HulaApiProject {
 		name: name,
+		is_hidden: false,
 	};
 
 	let client = reqwest::Client::new();
