@@ -1,7 +1,8 @@
 import json
 import sys
-import datetime
 import jsonpickle
+from datetime import timedelta
+from datetime import datetime
 
 url = str(sys.argv[1])
 db = str(sys.argv[2])
@@ -29,6 +30,9 @@ class ProjectNeedSkill(object):
         min_years :int
         mandatory :bool
 
+t = datetime.now() - timedelta(hours=10)
+limit = t.strftime('%Y-%m-%d %H:%M:%S')
+
 common = xmlrpc.client.ServerProxy('{}/xmlrpc/2/common'.format(url))
 
 uid = common.authenticate(db, username, password, {})
@@ -36,7 +40,7 @@ uid = common.authenticate(db, username, password, {})
 models = xmlrpc.client.ServerProxy('{}/xmlrpc/2/object'.format(url))
 c = models.execute_kw(db, uid, password,
     'crm.lead', 'search_read',
-    [[]],
+    [[['write_date', '>', limit]]],
     {'fields': ['id', 
         'name',
         'x_studio_hula_project_name', 

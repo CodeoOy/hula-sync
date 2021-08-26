@@ -91,6 +91,12 @@ pub struct ProjectMatch {
 	pub link: String,
 }
 
+#[derive(Deserialize, Debug)]
+pub struct ProjectStructureResponse {
+	pub id: uuid::Uuid,
+	pub matches: i32,
+}
+
 pub async fn do_process(
 	conn: &PgConnection,
 ) -> Result<(), String> {
@@ -236,9 +242,10 @@ async fn do_process2(
 			if let Some(b2) = a2 {
 				println!("Some(b2) = {:?}", b2);
 				println!("updating {} {}", b.id.clone(), b2.name.clone());
-				let _ = update_hula_project_odoo(b.id.clone(), b2).await;
+				let updated = update_hula_project_odoo(b.id.clone(), b2).await;
+				let updated = updated.unwrap();
 
-				matches.push(ProjectMatch {id: log1.odoo_id, matches: 3, link: format!("{}/app/project/{}", &hula_url, log1.hula_id) });
+				matches.push(ProjectMatch {id: log1.odoo_id, matches: updated.matches, link: format!("{}/app/project/{}", &hula_url, log1.hula_id) });
 			}			
 		}
 	}
@@ -252,12 +259,12 @@ async fn do_process2(
 			println!("inserting {:?}", deal.id);
 
 			let added = insert_hula_project_odoo(deal).await;
+			let added = added.unwrap();
 
-			let my_uuid =
-				Uuid::parse_str(&added.expect("no way")).expect("crash here");
-
+			let my_uuid = added.id;
+		
 			let _ = insert_odoo_log(&conn, my_uuid, deal.id, deal.name.clone()).await;
-			matches.push(ProjectMatch {id: deal.id, matches: 3, link: format!("{}/app/projects/{}", &hula_url, &my_uuid) });
+			matches.push(ProjectMatch {id: deal.id, matches: added.matches, link: format!("{}/app/project/{}", &hula_url, &my_uuid) });
 		}
 	}
 
@@ -298,7 +305,7 @@ async fn insert_odoo_log(
 
 pub async fn insert_hula_project_odoo(
 	header: &OdooProjectHeader,
-) -> Result<String, &'static str> {
+) -> Result<ProjectStructureResponse, &'static str> {
 
 	let hula_url =
 		std::env::var("HULA_URL").expect("HULA_URL must be set");
@@ -340,7 +347,7 @@ pub async fn insert_hula_project_odoo(
 		},
 	};
 	
-	let hula_project: String = jiison2;
+	let hula_project: ProjectStructureResponse = jiison2;
 	//let project_id = hula_project.id;
 	
 	Ok(hula_project)
@@ -349,7 +356,7 @@ pub async fn insert_hula_project_odoo(
 pub async fn update_hula_project_odoo(
 	project_id: String,
 	project: &OdooProjectHeader,
-) -> Result<(), &'static str> {
+) -> Result<ProjectStructureResponse, &'static str> {
 
 	let hula_url =
 		std::env::var("HULA_URL").expect("HULA_URL must be set");
@@ -380,6 +387,18 @@ pub async fn update_hula_project_odoo(
     };
 
 	println!("...Response is: {:?}", &response);
+	
+	let jiison = response.json().await;
 
-	Ok(())
+	let jiison2 = match jiison {
+		Ok(file) => file,
+		Err(e) => {
+			println!("{:?}", e);
+			return Err("2");
+		},
+	};
+	
+	let hula_project: ProjectStructureResponse = jiison2;
+
+	Ok(hula_project)
 }
