@@ -30,7 +30,7 @@ class ProjectNeedSkill(object):
         min_years :int
         mandatory :bool
 
-t = datetime.now() - timedelta(hours=10)
+t = datetime.now() - timedelta(days=10)
 limit = t.strftime('%Y-%m-%d %H:%M:%S')
 
 common = xmlrpc.client.ServerProxy('{}/xmlrpc/2/common'.format(url))

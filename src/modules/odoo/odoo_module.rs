@@ -1,59 +1,59 @@
 use chrono::NaiveDate;
 use diesel::{prelude::*, PgConnection};
+use log::{error, trace};
 use serde::{Deserialize, Serialize};
 
-use crate::models::odoo_project::{OdooProject};
-use crate::hulautils::{HulaProject, get_hula_projects};
+use crate::hulautils::{get_hula_projects, HulaProject};
+use crate::models::odoo_project::OdooProject;
 
 use std::process::Command;
 
 use std::str;
-use uuid::Uuid;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct OdooProjectHeader {
-    id: i32,
-    name: String,
-    description: String,
-	needs: Vec<OdooProjectNeed>
+	id: i32,
+	name: String,
+	description: String,
+	needs: Vec<OdooProjectNeed>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct OdooProjectNeed {
-    label: String,
-    nbr: i32,
-    begin: NaiveDate,
-    end: Option<NaiveDate>,
-	skills: Vec<OdooProjectNeedSkill>
+	label: String,
+	nbr: i32,
+	begin: NaiveDate,
+	end: Option<NaiveDate>,
+	skills: Vec<OdooProjectNeedSkill>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct OdooProjectNeedSkill {
-    skill: String,
-    level: Option<String>,
-    min_years: Option<f64>,
-    mandatory: bool,
+	skill: String,
+	level: Option<String>,
+	min_years: Option<f64>,
+	mandatory: bool,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct ProjectStructureData {
+pub struct HulaProjectStructureData {
 	pub name: String,
 	pub is_hidden: bool,
-	pub needs: Vec<ProjectStructureNeedData>,
+	pub needs: Vec<HulaProjectStructureNeedData>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct ProjectStructureNeedData {
+pub struct HulaProjectStructureNeedData {
 	pub label: String,
 	pub count_of_users: i32,
 	pub begin_time: chrono::NaiveDate,
 	pub end_time: Option<chrono::NaiveDate>,
 	pub percentage: Option<i32>,
-	pub skills: Vec<ProjectStructureNeedSkillData>,
+	pub skills: Vec<HulaProjectStructureNeedSkillData>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct ProjectStructureNeedSkillData {
+pub struct HulaProjectStructureNeedSkillData {
 	pub skill_label: String,
 	pub skillscopelevel_label: Option<String>,
 	pub min_years: Option<f64>,
@@ -61,25 +61,33 @@ pub struct ProjectStructureNeedSkillData {
 	pub mandatory: bool,
 }
 
-impl From<&OdooProjectHeader> for ProjectStructureData {
-	fn from(project: &OdooProjectHeader) -> ProjectStructureData {
-		ProjectStructureData {
+impl From<&OdooProjectHeader> for HulaProjectStructureData {
+	fn from(project: &OdooProjectHeader) -> HulaProjectStructureData {
+		HulaProjectStructureData {
 			name: project.name.clone(),
 			is_hidden: false,
-			needs: project.needs.iter().map(|x| ProjectStructureNeedData {
-				label: x.label.clone(),
-				count_of_users: x.nbr,
-				begin_time: x.begin,
-				end_time: x.end,
-				percentage: Some(100),
-				skills: x.skills.iter().map(|y| ProjectStructureNeedSkillData {
-					skill_label: y.skill.clone(),
-					skillscopelevel_label: y.level.clone(),
-					min_years: y.min_years,
-					max_years: None,
-					mandatory: y.mandatory,
-				}).collect()
-			}).collect()
+			needs: project
+				.needs
+				.iter()
+				.map(|x| HulaProjectStructureNeedData {
+					label: x.label.clone(),
+					count_of_users: x.nbr,
+					begin_time: x.begin,
+					end_time: x.end,
+					percentage: Some(100),
+					skills: x
+						.skills
+						.iter()
+						.map(|y| HulaProjectStructureNeedSkillData {
+							skill_label: y.skill.clone(),
+							skillscopelevel_label: y.level.clone(),
+							min_years: y.min_years,
+							max_years: None,
+							mandatory: y.mandatory,
+						})
+						.collect(),
+				})
+				.collect(),
 		}
 	}
 }
@@ -92,99 +100,98 @@ pub struct ProjectMatch {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct ProjectStructureResponse {
+pub struct HulaProjectStructureResponse {
 	pub id: uuid::Uuid,
 	pub matches: i32,
 }
 
-pub async fn do_process(
-	conn: &PgConnection,
-) -> Result<(), String> {
-	println!("Henlo world");
+pub struct OdooConfig {
+	pub odoo_url: String,
+	pub odoo_db: String,
+	pub odoo_uid: String,
+	pub odoo_pw: String,
+	pub hula_url: String,
+	pub hula_key: String,
+}
 
-	let odoo_deals = get_odoo_deals().await;
-	println!("odoo gotten");
-
-	let hula_projects = get_hula_projects().await;
-	println!("hula gotten");
-
-	let log = get_odoo_log(&conn);
-	println!("logs gotten: {:?}", log);
-
-	let matches = do_process2(&conn, odoo_deals.unwrap(), hula_projects.unwrap(), log.unwrap()).await;
-	println!("do_process2 done");
-
-	let matches = match matches {
-		Ok(v) => v,
-		Err(e) => return Err(format!("ProjectMatches failed: {}", e)),
+fn get_config() -> OdooConfig {
+	let config = OdooConfig {
+		odoo_url: std::env::var("ODOO_URL").expect("ODOO_URL must be set"),
+		odoo_db: std::env::var("ODOO_DB").expect("ODOO_DB must be set"),
+		odoo_uid: std::env::var("ODOO_USERNAME").expect("ODOO_USERNAME must be set"),
+		odoo_pw: std::env::var("ODOO_PASSWORD").expect("ODOO_PASSWORD must be set"),
+		hula_url: std::env::var("HULA_URL").expect("HULA_URL must be set"),
+		hula_key: std::env::var("HULA_API_KEY").expect("HULA_API_KEY must be set"),
 	};
 
-	let m = put_odoo_matches(matches).await;
-	println!("put_odoo_matches done {:?}", m);
+	config
+}
 
+pub async fn do_process(conn: &PgConnection) -> Result<(), String> {
+	trace!("Processing Odoo interface.");
+
+	let odoo_deals = get_odoo_deals().await?;
+	trace!("Got Odoo unprocessed projects: {}", odoo_deals.len());
+
+	let hula_projects = get_hula_projects().await?;
+	trace!("Got Hula project descriptions: {}", hula_projects.len());
+
+	let log = get_odoo_log(&conn)?;
+	trace!("Got Integration project descriptions: {}", log.len());
+
+	let matches = do_process_internal(&conn, odoo_deals, hula_projects, log).await?;
+	trace!("Processing resulted in matches: {}", matches.len());
+
+	put_odoo_matches(matches).await?;
+
+	trace!("Odoo interface done.");
 	Ok(())
 }
 
-async fn get_odoo_deals(
-) -> Result<Vec<OdooProjectHeader>, String> {
+async fn get_odoo_deals() -> Result<Vec<OdooProjectHeader>, String> {
+	let c = get_config();
 
-	let odoo_url =
-		std::env::var("ODOO_URL").expect("ODOO_URL must be set");
-
-	let odoo_db =
-		std::env::var("ODOO_DB").expect("ODOO_DB must be set");
-
-	let odoo_id =
-		std::env::var("ODOO_USERNAME").expect("ODOO_USERNAME must be set");
-
-	let odoo_pw =
-		std::env::var("ODOO_PASSWORD").expect("ODOO_PASSWORD must be set");
-
-	println!("python3 src/modules/odoo/python/odoo_get.py {} {} {} {}",&odoo_url, &odoo_db, &odoo_id, &odoo_pw);
+	trace!(
+		"Running: python3 src/modules/odoo/python/odoo_get.py {} {} {} {}",
+		&c.odoo_url,
+		&c.odoo_db,
+		&c.odoo_uid,
+		&c.odoo_pw
+	);
 
 	let a = Command::new("python3")
-        .args(&["src/modules/odoo/python/odoo_get.py", &odoo_url, &odoo_db, &odoo_id, &odoo_pw])
+		.args(&[
+			"src/modules/odoo/python/odoo_get.py",
+			&c.odoo_url,
+			&c.odoo_db,
+			&c.odoo_uid,
+			&c.odoo_pw,
+		])
 		.output()
-        .expect("python3 failed to start");
-	
+		.expect("python3 failed to start");
+
 	let s = match str::from_utf8(&a.stdout) {
 		Ok(v) => v,
 		Err(e) => return Err(format!("Invalid UTF-8 sequence on stdout: {}", e)),
 	};
 
-	println!("Henlo world2");
-	println!("{}", s);
+	trace!("Output (first 50 chars): {}", &s[..50]);
 
 	let er = match str::from_utf8(&a.stderr) {
 		Ok(v) => v,
 		Err(e) => return Err(format!("Invalid UTF-8 sequence on stderr: {}", e)),
 	};
 
-	println!("Errors: {}", er);
+	trace!("Errors (first 50 chars): {}", &er[..50]);
 
-    let json: Vec<OdooProjectHeader> =
-        serde_json::from_str(s).expect("JSON was not well-formatted");
-
-	println!("...Got {} projects.", json.len());
+	let json: Vec<OdooProjectHeader> =
+		serde_json::from_str(s).expect("JSON was not well-formatted");
 
 	Ok(json)
 }
 
-async fn put_odoo_matches(
-	matches: Vec<ProjectMatch>
-) -> Result<(), String> {
-
-	let odoo_url =
-		std::env::var("ODOO_URL").expect("ODOO_URL must be set");
-
-	let odoo_db =
-		std::env::var("ODOO_DB").expect("ODOO_DB must be set");
-
-	let odoo_id =
-		std::env::var("ODOO_USERNAME").expect("ODOO_USERNAME must be set");
-
-	let odoo_pw =
-		std::env::var("ODOO_PASSWORD").expect("ODOO_PASSWORD must be set");
+async fn put_odoo_matches(matches: Vec<ProjectMatch>) -> Result<(), String> {
+	let c = get_config();
 
 	let odoo_matches = serde_json::to_string(&matches);
 
@@ -193,78 +200,86 @@ async fn put_odoo_matches(
 		Err(e) => return Err(format!("Serde failed: {}", e)),
 	};
 
-	println!("python3 src/modules/odoo/python/odoo_put.py {} {} {} {} {}",&odoo_url, &odoo_db, &odoo_id, &odoo_pw, &odoo_matches);
+	trace!(
+		"Running: python3 src/modules/odoo/python/odoo_put.py {} {} {} {} {}",
+		&c.odoo_url,
+		&c.odoo_db,
+		&c.odoo_uid,
+		&c.odoo_pw,
+		&odoo_matches
+	);
 
 	let _ = Command::new("python3")
-        .args(&["src/modules/odoo/python/odoo_put.py", &odoo_url, &odoo_db, &odoo_id, &odoo_pw, &odoo_matches])
+		.args(&[
+			"src/modules/odoo/python/odoo_put.py",
+			&c.odoo_url,
+			&c.odoo_db,
+			&c.odoo_uid,
+			&c.odoo_pw,
+			&odoo_matches,
+		])
 		.output()
-        .expect("python3 failed to start");
+		.expect("python3 failed to start");
 
 	Ok(())
 }
 
-fn get_odoo_log(
-	conn: &PgConnection,
-) -> Result<Vec<OdooProject>, String> {
-
+fn get_odoo_log(conn: &PgConnection) -> Result<Vec<OdooProject>, String> {
 	use crate::schema::odoo_projects::dsl::odoo_projects;
-	let items = odoo_projects.load::<OdooProject>(conn).expect("failed to load from db");
+	let items = odoo_projects
+		.load::<OdooProject>(conn)
+		.expect("failed to load from db");
 
-	println!("\nGot all logs.\n");
 	return Ok(items);
 }
 
-async fn do_process2(
+async fn do_process_internal(
 	conn: &PgConnection,
 	deals: Vec<OdooProjectHeader>,
 	projects: Vec<HulaProject>,
 	log: Vec<OdooProject>,
 ) -> Result<Vec<ProjectMatch>, String> {
-	println!("Henlo world");
+	let mut matches: Vec<ProjectMatch> = vec![];
 
-	let mut matches :Vec<ProjectMatch> = vec!();
-
-	let hula_url =
-		std::env::var("HULA_URL").expect("HULA_URL must be set");
+	let c = get_config();
 
 	/* iterate log, see what needs update */
 	for log1 in &log {
-		println!("log1 = {:?}", log1);
-
-		let h = projects.iter(); 
+		let h = projects.iter();
 		let a = h.filter(|x| x.id == log1.hula_id.to_string()).next();
 
 		if let Some(b) = a {
-			println!("Some(b) = {:?}", b);
-			let h2 = deals.iter(); 
+			let h2 = deals.iter();
 			let a2 = h2.filter(|x| x.id == log1.odoo_id).next();
 
 			if let Some(b2) = a2 {
-				println!("Some(b2) = {:?}", b2);
-				println!("updating {} {}", b.id.clone(), b2.name.clone());
 				let updated = update_hula_project_odoo(b.id.clone(), b2).await;
 				let updated = updated.unwrap();
 
-				matches.push(ProjectMatch {id: log1.odoo_id, matches: updated.matches, link: format!("{}/app/project/{}", &hula_url, log1.hula_id) });
-			}			
+				matches.push(ProjectMatch {
+					id: log1.odoo_id,
+					matches: updated.matches,
+					link: format!("{}/app/project/{}", &c.hula_url, log1.hula_id),
+				});
+			}
 		}
 	}
 
 	/* iterate deals, see what needs insert */
 	for deal in &deals {
-		println!("deal = {:?}", deal);
-		let mut h = log.iter(); 
+		let mut h = log.iter();
 		if h.any(|x| x.odoo_id == deal.id) == false {
-
-			println!("inserting {:?}", deal.id);
-
 			let added = insert_hula_project_odoo(deal).await;
 			let added = added.unwrap();
 
 			let my_uuid = added.id;
-		
+
 			let _ = insert_odoo_log(&conn, my_uuid, deal.id, deal.name.clone()).await;
-			matches.push(ProjectMatch {id: deal.id, matches: added.matches, link: format!("{}/app/project/{}", &hula_url, &my_uuid) });
+			matches.push(ProjectMatch {
+				id: deal.id,
+				matches: added.matches,
+				link: format!("{}/app/project/{}", &c.hula_url, &my_uuid),
+			});
 		}
 	}
 
@@ -276,9 +291,7 @@ async fn insert_odoo_log(
 	hula_id: uuid::Uuid,
 	odoo_id: i32,
 	name: String,
-
 ) -> Result<(), String> {
-
 	use crate::schema::odoo_projects::dsl::odoo_projects;
 
 	let new_project = OdooProject {
@@ -288,15 +301,12 @@ async fn insert_odoo_log(
 		name: name.clone(),
 		updated_by: "hulasync".to_string(),
 	};
-	println!("Inserting data");
 
 	let rows_inserted = diesel::insert_into(odoo_projects)
 		.values(&new_project)
 		.get_result::<OdooProject>(conn);
-	
-	println!("{:?}", rows_inserted);
+
 	if rows_inserted.is_ok() {
-		println!("\nProject added successfully.\n");
 		return Ok(());
 	}
 
@@ -305,100 +315,83 @@ async fn insert_odoo_log(
 
 pub async fn insert_hula_project_odoo(
 	header: &OdooProjectHeader,
-) -> Result<ProjectStructureResponse, &'static str> {
+) -> Result<HulaProjectStructureResponse, &'static str> {
+	let c = get_config();
 
-	let hula_url =
-		std::env::var("HULA_URL").expect("HULA_URL must be set");
-
-	let hula_key =
-		std::env::var("HULA_API_KEY").expect("HULA_API_KEY must be set");
-
-	let request_url = format!("{}/api/projectstructures", hula_url);
-    println!("Calling {}", request_url);
+	let request_url = format!("{}/api/projectstructures", c.hula_url);
 
 	let client = reqwest::Client::new();
 
-	let data :ProjectStructureData = header.into();
+	let data: HulaProjectStructureData = header.into();
 
 	let response = client
 		.post(&request_url)
-		.header("Cookie", format!("auth={}", hula_key))
+		.header("Cookie", format!("auth={}", c.hula_key))
 		.json(&data)
 		.send()
 		.await;
-	
+
 	let response = match response {
 		Ok(file) => file,
 		Err(e) => {
-			println!("{:?}", e);
 			return Err("1");
-		},
+		}
 	};
-	
-	println!("...Response is: {:?}", &response);
-	
+
 	let jiison = response.json().await;
 
 	let jiison2 = match jiison {
 		Ok(file) => file,
 		Err(e) => {
-			println!("{:?}", e);
 			return Err("2");
-		},
+		}
 	};
-	
-	let hula_project: ProjectStructureResponse = jiison2;
-	//let project_id = hula_project.id;
-	
+
+	let hula_project: HulaProjectStructureResponse = jiison2;
+
 	Ok(hula_project)
 }
 
 pub async fn update_hula_project_odoo(
 	project_id: String,
 	project: &OdooProjectHeader,
-) -> Result<ProjectStructureResponse, &'static str> {
+) -> Result<HulaProjectStructureResponse, &'static str> {
+	let c = get_config();
 
-	let hula_url =
-		std::env::var("HULA_URL").expect("HULA_URL must be set");
-
-	let hula_key =
-		std::env::var("HULA_API_KEY").expect("HULA_API_KEY must be set");
-
-	let request_url = format!("{}/api/projectstructures/{}", hula_url, project_id.clone());
-    println!("Calling {}", request_url);
+	let request_url = format!(
+		"{}/api/projectstructures/{}",
+		c.hula_url,
+		project_id.clone()
+	);
 
 	let client = reqwest::Client::new();
 
-	let data :ProjectStructureData = project.into();
+	let data: HulaProjectStructureData = project.into();
 
 	let response = client
 		.put(&request_url)
-		.header("Cookie", format!("auth={}", hula_key))
+		.header("Cookie", format!("auth={}", c.hula_key))
 		.json(&data)
 		.send()
 		.await;
-	
-	let response = match response {
-        Ok(file) => file,
-        Err(e) => {
-			println!("{:?}", e);
-			return Err("1");
-		},
-    };
 
-	println!("...Response is: {:?}", &response);
-	
+	let response = match response {
+		Ok(file) => file,
+		Err(e) => {
+			return Err("1");
+		}
+	};
+
 	let jiison = response.json().await;
 
 	let jiison2 = match jiison {
 		Ok(file) => file,
 		Err(e) => {
-			println!("{:?}", e);
 			return Err("2");
-		},
+		}
 	};
-	
-	let hula_project: ProjectStructureResponse = jiison2;
+
+	let hula_project: HulaProjectStructureResponse = jiison2;
 
 	Ok(hula_project)
 }

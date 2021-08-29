@@ -1,2 +1,2 @@
-pub mod odoo;
 pub mod hubspot;
+pub mod odoo;
