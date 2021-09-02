@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::hulautils::{get_hula_projects, insert_hula_project, update_hula_project, HulaProject};
 use crate::models::hubspot_project::HubspotProject;
+use crate::hulautils::HulaConfig;
 
 use std::str;
 use uuid::Uuid;
@@ -40,19 +41,20 @@ pub struct HubspotLimit {
 	after: u64,
 }
 
-pub async fn do_process(conn: &PgConnection) -> Result<(), String> {
+pub async fn do_process(config: &HulaConfig, conn: &PgConnection) -> Result<(), String> {
 	println!("Henlo world");
 
 	let hubspot_deals = get_hubspot_deals().await;
 	println!("hubspot gotten");
 
-	let hula_projects = get_hula_projects().await;
+	let hula_projects = get_hula_projects(&config).await;
 	println!("hula gotten");
 
 	let log = get_hubspot_log(&conn);
 	println!("logs gotten: {:?}", log);
 
 	let _ = do_process2(
+		&config,
 		&conn,
 		hubspot_deals.unwrap().deals,
 		hula_projects.unwrap(),
@@ -119,6 +121,7 @@ fn get_hubspot_log(conn: &PgConnection) -> Result<Vec<HubspotProject>, String> {
 }
 
 async fn do_process2(
+	config: &HulaConfig,
 	conn: &PgConnection,
 	deals: Vec<HubspotDeal>,
 	projects: Vec<HulaProject>,
@@ -162,7 +165,7 @@ async fn do_process2(
 		if h.any(|x| x.hubspot_id == deal.dealId.to_string()) == false {
 			println!("inserting {:?}", deal.properties.dealname.value);
 
-			let added = insert_hula_project(deal.properties.dealname.value.clone()).await;
+			let added = insert_hula_project(&config, deal.properties.dealname.value.clone()).await;
 
 			let my_uuid = Uuid::parse_str(&added.expect("no way")).expect("crash here");
 

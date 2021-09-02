@@ -6,6 +6,7 @@ use std::time::Duration;
 use crate::models::odoo_project::Pool;
 use crate::modules::hubspot::hubspot_module;
 use crate::modules::odoo::odoo_module;
+use crate::hulautils;
 
 pub async fn start_background(pool: Pool) {
 	info!("Starting background processing.");
@@ -25,6 +26,15 @@ pub async fn start_background(pool: Pool) {
 
 		let conn: &PgConnection = &pool.get().unwrap();
 
+		let config = hulautils::get_config().await;
+		let config = match config {
+			Ok(v) => v,
+			Err(e) => {
+				error!("NO CONNECTION to HULA: {}", &e);
+				return;
+			},
+		};
+
 		let a = m.iter();
 
 		for s in a {
@@ -32,10 +42,10 @@ pub async fn start_background(pool: Pool) {
 
 			match *s {
 				"odoo" => {
-					result = odoo_module::do_process(conn).await;
+					result = odoo_module::do_process(&config, conn).await;
 				}
 				"hubspot" => {
-					result = hubspot_module::do_process(conn).await;
+					result = hubspot_module::do_process(&config, conn).await;
 				}
 				_ => error!("Unknown module defined in MODULES variable!"),
 			};
@@ -47,6 +57,15 @@ pub async fn start_background(pool: Pool) {
 				}
 			}
 		}
+
+		let res = hulautils::close_config(&config).await;
+		let _ = match res {
+			Ok(v) => v,
+			Err(e) => {
+				error!("NO CONNECTION to HULA: {}", &e);
+				return;
+			},
+		};
 
 		task::sleep(Duration::from_secs(seconds)).await;
 	}

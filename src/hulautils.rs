@@ -15,19 +15,28 @@ pub struct HulaApiProject {
 	pub is_hidden: bool,
 }
 
-pub async fn get_hula_projects() -> Result<Vec<HulaProject>, &'static str> {
-	let hula_url = std::env::var("HULA_URL").expect("HULA_URL must be set");
+/*
+pub struct SyncError {
+	pub text: String,
+}
 
-	let hula_key = std::env::var("HULA_API_KEY").expect("HULA_API_KEY must be set");
+impl From<Error> for SyncError {
+	fn from(error: Error) -> SyncError {
+		SyncError {
+			text: format!("{}", &error)
+		}
+	}
+}*/
 
-	let request_url = format!("{}/api/projects", hula_url);
+pub async fn get_hula_projects(config: &HulaConfig) -> Result<Vec<HulaProject>, &'static str> {
+	let request_url = format!("{}/api/projects", config.hula_url);
 	println!("Calling {}", request_url);
 
 	let client = reqwest::Client::new();
 
 	let response = client
 		.get(&request_url)
-		.header("Cookie", format!("auth={}", hula_key))
+		.header("Cookie", format!("auth={}", &config.cookie))
 		.send()
 		.await;
 
@@ -62,12 +71,8 @@ pub async fn get_hula_projects() -> Result<Vec<HulaProject>, &'static str> {
 	Ok(projects)
 }
 
-pub async fn insert_hula_project(name: String) -> Result<String, &'static str> {
-	let hula_url = std::env::var("HULA_URL").expect("HULA_URL must be set");
-
-	let hula_key = std::env::var("HULA_API_KEY").expect("HULA_API_KEY must be set");
-
-	let request_url = format!("{}/api/projects", hula_url);
+pub async fn insert_hula_project(config: &HulaConfig, name: String) -> Result<String, &'static str> {
+	let request_url = format!("{}/api/projects", config.hula_url);
 	println!("Calling {}", request_url);
 
 	let project = HulaApiProject {
@@ -79,7 +84,7 @@ pub async fn insert_hula_project(name: String) -> Result<String, &'static str> {
 
 	let response = client
 		.post(&request_url)
-		.header("Cookie", format!("auth={}", hula_key))
+		.header("Cookie", format!("auth={}", config.cookie))
 		.json(&project)
 		.send()
 		.await;
@@ -146,14 +151,82 @@ pub async fn update_hula_project(project_id: String, name: String) -> Result<(),
 
 pub struct HulaConfig {
 	pub hula_url: String,
-	pub hula_key: String,
+	pub cookie: String,
 }
 
-pub fn get_config() -> HulaConfig {
-	let config = HulaConfig {
-		hula_url: std::env::var("HULA_URL").expect("HULA_URL must be set"),
-		hula_key: std::env::var("HULA_API_KEY").expect("HULA_API_KEY must be set"),
+#[derive(Deserialize, Serialize, Debug)]
+pub struct AuthData {
+	pub email: String,
+	pub password: String,
+}
+
+pub async fn get_config() 
+-> Result<HulaConfig, &'static str> {
+	let hula_url = std::env::var("HULA_URL").expect("HULA_URL must be set");
+	let hula_uid = std::env::var("HULA_USER_ID").expect("HULA_USER_ID must be set");
+	let hula_pwd = std::env::var("HULA_USER_PWD").expect("HULA_USER_PWD must be set");
+
+	let request_url = format!("{}/api/auth", hula_url);
+	println!("Calling {}", request_url);
+
+	let data = AuthData {
+		email: hula_uid,
+		password: hula_pwd,
 	};
 
-	config
+	let client = reqwest::Client::new();
+
+	let response = client
+		.post(&request_url)
+		.json(&data)
+		.send()
+		.await;
+
+	let response = match response {
+		Ok(file) => file,
+		Err(e) => {
+			println!("{:?}", e);
+			return Err("1");
+		}
+	};
+
+	let cookie = response.cookies().next();
+	let cookie = match cookie {
+		Some(c) => c,
+		None => {
+			return Err("11");
+		}
+	};
+
+	let config = HulaConfig {
+		hula_url: std::env::var("HULA_URL").expect("HULA_URL must be set"),
+		cookie: cookie.value().to_string()
+	};
+
+	Ok(config)
+}
+
+pub async fn close_config(config: &HulaConfig) 
+-> Result<(), &'static str> {
+
+	let request_url = format!("{}/api/auth", config.hula_url);
+	println!("Calling {}", request_url);
+
+	let client = reqwest::Client::new();
+
+	let response = client
+		.delete(&request_url)
+		.header("Cookie", format!("auth={}", config.cookie))
+		.send()
+		.await;
+
+	let _ = match response {
+		Ok(file) => file,
+		Err(e) => {
+			println!("{:?}", e);
+			return Err("1");
+		}
+	};
+
+	Ok(())
 }

@@ -1,9 +1,10 @@
 use chrono::NaiveDate;
 use diesel::{prelude::*, PgConnection};
-use log::{error, trace};
+use log::trace;
 use serde::{Deserialize, Serialize};
 
 use crate::hulautils::{get_hula_projects, HulaProject};
+use crate::hulautils::HulaConfig;
 use crate::models::odoo_project::OdooProject;
 
 use std::process::Command;
@@ -15,6 +16,7 @@ pub struct OdooProjectHeader {
 	id: i32,
 	name: String,
 	description: String,
+	visible: bool,
 	needs: Vec<OdooProjectNeed>,
 }
 
@@ -65,7 +67,7 @@ impl From<&OdooProjectHeader> for HulaProjectStructureData {
 	fn from(project: &OdooProjectHeader) -> HulaProjectStructureData {
 		HulaProjectStructureData {
 			name: project.name.clone(),
-			is_hidden: false,
+			is_hidden: !project.visible,
 			needs: project
 				.needs
 				.iter()
@@ -110,8 +112,6 @@ pub struct OdooConfig {
 	pub odoo_db: String,
 	pub odoo_uid: String,
 	pub odoo_pw: String,
-	pub hula_url: String,
-	pub hula_key: String,
 }
 
 fn get_config() -> OdooConfig {
@@ -120,26 +120,24 @@ fn get_config() -> OdooConfig {
 		odoo_db: std::env::var("ODOO_DB").expect("ODOO_DB must be set"),
 		odoo_uid: std::env::var("ODOO_USERNAME").expect("ODOO_USERNAME must be set"),
 		odoo_pw: std::env::var("ODOO_PASSWORD").expect("ODOO_PASSWORD must be set"),
-		hula_url: std::env::var("HULA_URL").expect("HULA_URL must be set"),
-		hula_key: std::env::var("HULA_API_KEY").expect("HULA_API_KEY must be set"),
 	};
 
 	config
 }
 
-pub async fn do_process(conn: &PgConnection) -> Result<(), String> {
+pub async fn do_process(config: &HulaConfig, conn: &PgConnection) -> Result<(), String> {
 	trace!("Processing Odoo interface.");
 
 	let odoo_deals = get_odoo_deals().await?;
 	trace!("Got Odoo unprocessed projects: {}", odoo_deals.len());
 
-	let hula_projects = get_hula_projects().await?;
+	let hula_projects = get_hula_projects(&config).await?;
 	trace!("Got Hula project descriptions: {}", hula_projects.len());
 
-	let log = get_odoo_log(&conn)?;
+	let log = get_odoo_log(&conn).await?;
 	trace!("Got Integration project descriptions: {}", log.len());
 
-	let matches = do_process_internal(&conn, odoo_deals, hula_projects, log).await?;
+	let matches = do_process_internal(&config, &conn, odoo_deals, hula_projects, log).await?;
 	trace!("Processing resulted in matches: {}", matches.len());
 
 	put_odoo_matches(matches).await?;
@@ -167,26 +165,37 @@ async fn get_odoo_deals() -> Result<Vec<OdooProjectHeader>, String> {
 			&c.odoo_uid,
 			&c.odoo_pw,
 		])
-		.output()
-		.expect("python3 failed to start");
+		.output();
 
+	let a = match a {
+		Ok(x) => x,
+		Err(e) => return Err(format!("Python3 failed: {}", e)),
+	};
+	
 	let s = match str::from_utf8(&a.stdout) {
 		Ok(v) => v,
 		Err(e) => return Err(format!("Invalid UTF-8 sequence on stdout: {}", e)),
 	};
 
-	trace!("Output (first 50 chars): {}", &s[..50]);
+	trace!("Output:\n{}", &s);
 
 	let er = match str::from_utf8(&a.stderr) {
 		Ok(v) => v,
 		Err(e) => return Err(format!("Invalid UTF-8 sequence on stderr: {}", e)),
 	};
 
-	trace!("Errors (first 50 chars): {}", &er[..50]);
+	if er.is_empty() == false {
+		trace!("Errors:\n{}", &er);
+	}
 
-	let json: Vec<OdooProjectHeader> =
-		serde_json::from_str(s).expect("JSON was not well-formatted");
+	let json = //: Vec<OdooProjectHeader> =
+		serde_json::from_str(s); //.expect("JSON was not well-formatted");
 
+	let json = match json {
+		Ok(v) => v,
+		Err(e) => return Err(format!("JSON was not well-formatted: {}", e)),
+	};
+	
 	Ok(json)
 }
 
@@ -209,7 +218,7 @@ async fn put_odoo_matches(matches: Vec<ProjectMatch>) -> Result<(), String> {
 		&odoo_matches
 	);
 
-	let _ = Command::new("python3")
+	let cmd = Command::new("python3")
 		.args(&[
 			"src/modules/odoo/python/odoo_put.py",
 			&c.odoo_url,
@@ -218,22 +227,31 @@ async fn put_odoo_matches(matches: Vec<ProjectMatch>) -> Result<(), String> {
 			&c.odoo_pw,
 			&odoo_matches,
 		])
-		.output()
-		.expect("python3 failed to start");
+		.output();
+
+	let _ = match cmd {
+		Ok(_) => Ok(()),
+		Err(e) => Err(format!("Python3 failed: {}", e)),
+	};
 
 	Ok(())
 }
 
-fn get_odoo_log(conn: &PgConnection) -> Result<Vec<OdooProject>, String> {
+async fn get_odoo_log(conn: &PgConnection) -> Result<Vec<OdooProject>, String> {
 	use crate::schema::odoo_projects::dsl::odoo_projects;
 	let items = odoo_projects
-		.load::<OdooProject>(conn)
-		.expect("failed to load from db");
+		.load::<OdooProject>(conn);
+
+	let items = match items {
+		Ok(items) => items,
+		Err(e) => return Err(format!("get_odoo_log failed: {}", e)),
+	};
 
 	return Ok(items);
 }
 
 async fn do_process_internal(
+	config: &HulaConfig,
 	conn: &PgConnection,
 	deals: Vec<OdooProjectHeader>,
 	projects: Vec<HulaProject>,
@@ -241,7 +259,7 @@ async fn do_process_internal(
 ) -> Result<Vec<ProjectMatch>, String> {
 	let mut matches: Vec<ProjectMatch> = vec![];
 
-	let c = get_config();
+	//let c = get_config();
 
 	/* iterate log, see what needs update */
 	for log1 in &log {
@@ -253,13 +271,15 @@ async fn do_process_internal(
 			let a2 = h2.filter(|x| x.id == log1.odoo_id).next();
 
 			if let Some(b2) = a2 {
-				let updated = update_hula_project_odoo(b.id.clone(), b2).await;
-				let updated = updated.unwrap();
-
+				let updated = update_hula_project_odoo(config, b.id.clone(), b2).await;
+				let updated = match updated {
+					Ok(item) => item,
+					Err(e) => return Err(format!("update_hula_project_odoo failed: {}", e)),
+				};
 				matches.push(ProjectMatch {
 					id: log1.odoo_id,
 					matches: updated.matches,
-					link: format!("{}/app/project/{}", &c.hula_url, log1.hula_id),
+					link: format!("{}/app/project/{}", &config.hula_url, log1.hula_id),
 				});
 			}
 		}
@@ -269,16 +289,24 @@ async fn do_process_internal(
 	for deal in &deals {
 		let mut h = log.iter();
 		if h.any(|x| x.odoo_id == deal.id) == false {
-			let added = insert_hula_project_odoo(deal).await;
-			let added = added.unwrap();
+			let added = insert_hula_project_odoo(config, deal).await;
+			let added = match added {
+				Ok(item) => item,
+				Err(e) => return Err(format!("insert_hula_project_odoo failed: {}", e)),
+			};
 
 			let my_uuid = added.id;
 
-			let _ = insert_odoo_log(&conn, my_uuid, deal.id, deal.name.clone()).await;
+			let inserted = insert_odoo_log(&conn, my_uuid, deal.id, deal.name.clone()).await;
+			let _ = match inserted {
+				Ok(item) => item,
+				Err(e) => return Err(format!("insert_odoo_log failed: {}", e)),
+			};
+
 			matches.push(ProjectMatch {
 				id: deal.id,
 				matches: added.matches,
-				link: format!("{}/app/project/{}", &c.hula_url, &my_uuid),
+				link: format!("{}/app/project/{}", &config.hula_url, &my_uuid),
 			});
 		}
 	}
@@ -314,11 +342,12 @@ async fn insert_odoo_log(
 }
 
 pub async fn insert_hula_project_odoo(
+	config: &HulaConfig,
 	header: &OdooProjectHeader,
 ) -> Result<HulaProjectStructureResponse, &'static str> {
-	let c = get_config();
+	//let c = get_config();
 
-	let request_url = format!("{}/api/projectstructures", c.hula_url);
+	let request_url = format!("{}/api/projectstructures", config.hula_url);
 
 	let client = reqwest::Client::new();
 
@@ -326,14 +355,14 @@ pub async fn insert_hula_project_odoo(
 
 	let response = client
 		.post(&request_url)
-		.header("Cookie", format!("auth={}", c.hula_key))
+		.header("Cookie", format!("auth={}", config.cookie))
 		.json(&data)
 		.send()
 		.await;
 
 	let response = match response {
 		Ok(file) => file,
-		Err(e) => {
+		Err(_) => {
 			return Err("1");
 		}
 	};
@@ -342,7 +371,7 @@ pub async fn insert_hula_project_odoo(
 
 	let jiison2 = match jiison {
 		Ok(file) => file,
-		Err(e) => {
+		Err(_) => {
 			return Err("2");
 		}
 	};
@@ -353,14 +382,15 @@ pub async fn insert_hula_project_odoo(
 }
 
 pub async fn update_hula_project_odoo(
+	config: &HulaConfig,
 	project_id: String,
 	project: &OdooProjectHeader,
 ) -> Result<HulaProjectStructureResponse, &'static str> {
-	let c = get_config();
+	//let c = get_config();
 
 	let request_url = format!(
 		"{}/api/projectstructures/{}",
-		c.hula_url,
+		config.hula_url,
 		project_id.clone()
 	);
 
@@ -370,14 +400,14 @@ pub async fn update_hula_project_odoo(
 
 	let response = client
 		.put(&request_url)
-		.header("Cookie", format!("auth={}", c.hula_key))
+		.header("Cookie", format!("auth={}", config.cookie))
 		.json(&data)
 		.send()
 		.await;
 
 	let response = match response {
 		Ok(file) => file,
-		Err(e) => {
+		Err(_) => {
 			return Err("1");
 		}
 	};
@@ -386,7 +416,7 @@ pub async fn update_hula_project_odoo(
 
 	let jiison2 = match jiison {
 		Ok(file) => file,
-		Err(e) => {
+		Err(_) => {
 			return Err("2");
 		}
 	};
