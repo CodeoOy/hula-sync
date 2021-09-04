@@ -25,8 +25,8 @@ for match in matches:
                 {'fields': ['x_studio_nbr_of_matches', 
                         'x_studio_link']})
 
-        if existing:
-                if existing['x_studio_nbr_of_matches'] = nbr_of_matches and existing['x_studio_link']:
+        if len(existing) > 0:
+                if existing[0]['x_studio_nbr_of_matches'] == nbr_of_matches and existing[0]['x_studio_link']:
                         continue
 
         models.execute_kw(db, uid, password, 'crm.lead', 'write', [[match["id"]], {
