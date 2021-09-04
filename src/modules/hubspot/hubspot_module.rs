@@ -1,9 +1,9 @@
 use diesel::{prelude::*, PgConnection};
 use serde::{Deserialize, Serialize};
 
+use crate::hulautils::HulaConfig;
 use crate::hulautils::{get_hula_projects, insert_hula_project, update_hula_project, HulaProject};
 use crate::models::hubspot_project::HubspotProject;
-use crate::hulautils::HulaConfig;
 
 use std::str;
 use uuid::Uuid;

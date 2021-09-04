@@ -8,6 +8,7 @@ url = str(sys.argv[1])
 db = str(sys.argv[2])
 username = str(sys.argv[3])
 password = str(sys.argv[4])
+lastrun = str(sys.argv[5])
 
 import xmlrpc.client
 
@@ -31,8 +32,12 @@ class ProjectNeedSkill(object):
         min_years :int
         mandatory :bool
 
-t = datetime.now() - timedelta(minutes=360)
-limit = t.strftime('%Y-%m-%d %H:%M:%S')
+if str(lastrun):
+        t = datetime.now() - timedelta(minutes=int(lastrun) + 180)
+        limit = t.strftime('%Y-%m-%d %H:%M:%S')
+else:
+        t = datetime.min
+        limit = t.strftime('%Y-%m-%d %H:%M:%S')
 
 common = xmlrpc.client.ServerProxy('{}/xmlrpc/2/common'.format(url))
 

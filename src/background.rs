@@ -3,10 +3,10 @@ use diesel::prelude::*;
 use log::{error, info};
 use std::time::Duration;
 
+use crate::hulautils;
 use crate::models::odoo_project::Pool;
 use crate::modules::hubspot::hubspot_module;
 use crate::modules::odoo::odoo_module;
-use crate::hulautils;
 
 pub async fn start_background(pool: Pool) {
 	info!("Starting background processing.");
@@ -32,7 +32,7 @@ pub async fn start_background(pool: Pool) {
 			Err(e) => {
 				error!("NO CONNECTION to HULA: {}", &e);
 				return;
-			},
+			}
 		};
 
 		let a = m.iter();
@@ -64,7 +64,7 @@ pub async fn start_background(pool: Pool) {
 			Err(e) => {
 				error!("NO CONNECTION to HULA: {}", &e);
 				return;
-			},
+			}
 		};
 
 		task::sleep(Duration::from_secs(seconds)).await;
