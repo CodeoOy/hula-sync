@@ -49,15 +49,15 @@ c = models.execute_kw(db, uid, password,
     [[['write_date', '>', limit]]],
     {'fields': ['id', 
         'name',
-        'x_studio_hula_project_name', 
+        'x_studio_project_name', 
         'x_studio_description', 
         'x_studio_begin', 
         'x_studio_end', 
         'x_studio_nbr_of_positions', 
-        'x_studio_skill', 
-        'x_studio_level', 
-        'x_studio_minimum_years', 
-        'x_studio_mandatory', 
+        'x_studio_skill_1', 
+        'x_studio_level_1', 
+        'x_studio_minimum_years_1', 
+        'x_studio_mandatory_1', 
         'x_studio_skill_2', 
         'x_studio_level_2', 
         'x_studio_minimum_years_2', 
@@ -69,37 +69,37 @@ c = models.execute_kw(db, uid, password,
 res = []
 
 for cc in c:
-    if not cc['x_studio_skill']:
+    if not cc['x_studio_skill_1']:
             continue
 
     if isinstance(cc['x_studio_begin'], bool):
             continue
 
-    if not cc['x_studio_hula_project_name']:
-            cc['x_studio_hula_project_name'] = 'Odoo project: ' + str(cc['id'])
+    if not cc['x_studio_project_name']:
+            cc['x_studio_project_name'] = 'Odoo project: ' + str(cc['id'])
 
     if not cc['x_studio_description']:
-            cc['x_studio_description'] = cc['x_studio_hula_project_name']
+            cc['x_studio_description'] = cc['x_studio_project_name']
 
     if not cc['x_studio_role']:
-            cc['x_studio_role'] = cc['x_studio_hula_project_name']
+            cc['x_studio_role'] = cc['x_studio_project_name']
 
-    if isinstance(cc['x_studio_level'], bool):
-            cc['x_studio_level'] = None
+    if isinstance(cc['x_studio_level_1'], bool):
+            cc['x_studio_level_1'] = None
     else:
-            cc['x_studio_level'] = cc['x_studio_level'][1]                        
+            cc['x_studio_level_1'] = cc['x_studio_level_1'][1]                        
 
     if isinstance(cc['x_studio_end'], bool):
             cc['x_studio_end'] = None
 
 
     skills = []
-    if cc['x_studio_skill']:
+    if cc['x_studio_skill_1']:
         skill = ProjectNeedSkill()
-        skill.skill = cc['x_studio_skill'][1]
-        skill.level = cc['x_studio_level']
-        skill.min_years = cc['x_studio_minimum_years'] 
-        skill.mandatory = cc['x_studio_mandatory']
+        skill.skill = cc['x_studio_skill_1'][1]
+        skill.level = cc['x_studio_level_1']
+        skill.min_years = cc['x_studio_minimum_years_1'] 
+        skill.mandatory = cc['x_studio_mandatory_1']
         skills.append(skill)
 
     if cc['x_studio_skill_2']:
@@ -120,7 +120,7 @@ for cc in c:
 
     proj = Project()
     proj.id = cc['id']
-    proj.name = cc['x_studio_hula_project_name']
+    proj.name = cc['x_studio_project_name']
     proj.description = cc['x_studio_description']
     proj.visible = cc['x_studio_visible']
     proj.needs = [need]
