@@ -1,4 +1,4 @@
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::NaiveDate;
 use diesel::{prelude::*, PgConnection};
 use log::{error, trace};
 use serde::{Deserialize, Serialize};

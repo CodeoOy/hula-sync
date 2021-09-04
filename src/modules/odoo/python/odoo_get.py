@@ -33,7 +33,7 @@ class ProjectNeedSkill(object):
         mandatory :bool
 
 if str(lastrun):
-        t = datetime.now() - timedelta(minutes=int(lastrun) + 180)
+        t = datetime.utcnow() - timedelta(minutes=int(lastrun))
         limit = t.strftime('%Y-%m-%d %H:%M:%S')
 else:
         t = datetime.min
