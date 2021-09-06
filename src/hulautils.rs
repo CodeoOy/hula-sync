@@ -6,8 +6,17 @@ use serde::{Deserialize, Serialize};
 #[derive(Deserialize, Serialize, Debug)]
 pub struct HulaProject {
 	pub id: String,
+	pub description: Option<String>,
 	pub name: String,
 }
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct HulaUpdateProject {
+	pub name: String,
+	pub description: Option<String>,
+	pub is_hidden: bool,
+}
+
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct HulaApiProject {
@@ -117,16 +126,14 @@ pub async fn insert_hula_project(
 	Ok(project.id)
 }
 
-pub async fn update_hula_project(project_id: String, name: String) -> Result<(), &'static str> {
-	let hula_url = std::env::var("HULA_URL").expect("HULA_URL must be set");
-
-	let hula_key = std::env::var("HULA_API_KEY").expect("HULA_API_KEY must be set");
-
-	let request_url = format!("{}/api/projects/{}", hula_url, project_id.clone());
+pub async fn update_hula_project(	config: &HulaConfig,
+		project_id: String, name: String, description: Option<String>) -> Result<(), &'static str> {
+	let request_url = format!("{}/api/projects/{}", config.hula_url, project_id.clone());
 	println!("Calling {}", request_url);
 
-	let project = HulaProject {
-		id: project_id,
+	let project = HulaUpdateProject {
+		description: description,
+		is_hidden: false,
 		name: name,
 	};
 
@@ -134,7 +141,7 @@ pub async fn update_hula_project(project_id: String, name: String) -> Result<(),
 
 	let response = client
 		.put(&request_url)
-		.header("Cookie", format!("auth={}", hula_key))
+		.header("Cookie", format!("auth={}", config.cookie))
 		.json(&project)
 		.send()
 		.await;

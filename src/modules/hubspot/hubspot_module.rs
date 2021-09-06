@@ -24,6 +24,7 @@ pub struct HubspotDeal {
 pub struct HubspotProperties {
 	dealname: HubspotDealName,
 	dealstage: HubspotDealStage,
+	palvelut: Option<HubspotPalvelut>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -33,6 +34,11 @@ pub struct HubspotDealName {
 
 #[derive(Deserialize, Debug)]
 pub struct HubspotDealStage {
+	value: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct HubspotPalvelut {
 	value: String,
 }
 
@@ -69,7 +75,7 @@ pub async fn do_process(config: &HulaConfig, conn: &PgConnection) -> Result<(), 
 pub async fn get_hubspot_deals() -> Result<HubspotHeader, &'static str> {
 	let hubspot_key = std::env::var("HUBSPOT_API_KEY").expect("HUBSPOT_API_KEY must be set");
 
-	let request_url = format!("https://api.hubapi.com/deals/v1/deal/paged?hapikey={}&properties=dealname&properties=dealstage&limit=250",
+	let request_url = format!("https://api.hubapi.com/deals/v1/deal/paged?hapikey={}&properties=dealname&properties=dealstage&properties=palvelut&limit=250",
 		hubspot_key);
 
 	println!("Calling {}", request_url);
@@ -85,7 +91,7 @@ pub async fn get_hubspot_deals() -> Result<HubspotHeader, &'static str> {
 		}
 	};
 
-	// println!("...Response is: {:?}", &response);
+	println!("...Response is: {:?}", &response);
 
 	let jiison = response.json().await;
 
@@ -103,9 +109,11 @@ pub async fn get_hubspot_deals() -> Result<HubspotHeader, &'static str> {
 
 	header
 		.deals
-		.retain(|x| x.properties.dealstage.value == "appointmentscheduled");
+		.retain(|x| x.properties.dealstage.value == "1479299");
 
 	println!("...Filtered. Remaining with {}", header.deals.len());
+
+	println!("--------------------------------------------------------------- {:?}", header.deals);
 
 	Ok(header)
 }
@@ -140,18 +148,25 @@ async fn do_process2(
 			println!("Some(b) = {:?}", b);
 			let h2 = deals.iter();
 			let a2 = h2
-				.filter(|x| x.properties.dealname.value == log1.hubspot_id)
+				.filter(|x| x.dealId.to_string() == log1.hubspot_id)
 				.next();
 
 			if let Some(b2) = a2 {
 				println!("Some(b2) = {:?}", b2);
-				if b.name != b2.properties.dealname.value {
+
+				let palvelut = match &b2.properties.palvelut {
+					Some(x) => Some(x.value.clone()),
+					None => None
+				};
+
+				if b.name != b2.properties.dealname.value || b.description != palvelut {
 					println!(
 						"updating {} {}",
 						b.id.clone(),
 						b2.properties.dealname.value.clone()
 					);
-					let _ = update_hula_project(b.id.clone(), b2.properties.dealname.value.clone())
+
+					let _ = update_hula_project(config, b.id.clone(), b2.properties.dealname.value.clone(), palvelut)
 						.await;
 				}
 			}

@@ -62,6 +62,14 @@ c = models.execute_kw(db, uid, password,
         'x_studio_level_2', 
         'x_studio_minimum_years_2', 
         'x_studio_mandatory_2',
+        'x_studio_skill_3', 
+        'x_studio_level_3', 
+        'x_studio_minimum_years_3', 
+        'x_studio_mandatory_3', 
+        'x_studio_skill_4', 
+        'x_studio_level_4', 
+        'x_studio_minimum_years_4', 
+        'x_studio_mandatory_4',
         'x_studio_role',
         'x_studio_visible'],
         'limit': 5000})
@@ -109,6 +117,22 @@ for cc in c:
         skill2.min_years = cc['x_studio_minimum_years_2'] 
         skill2.mandatory = cc['x_studio_mandatory_2']
         skills.append(skill2)
+
+    if cc['x_studio_skill_3']:
+        skill3 = ProjectNeedSkill()
+        skill3.skill = cc['x_studio_skill_3'][1]
+        skill3.level = cc['x_studio_level_3']
+        skill3.min_years = cc['x_studio_minimum_years_3'] 
+        skill3.mandatory = cc['x_studio_mandatory_3']
+        skills.append(skill3)
+
+    if cc['x_studio_skill_4']:
+        skill4 = ProjectNeedSkill()
+        skill4.skill = cc['x_studio_skill_4'][1]
+        skill4.level = cc['x_studio_level_4'][1]
+        skill4.min_years = cc['x_studio_minimum_years_4'] 
+        skill4.mandatory = cc['x_studio_mandatory_4']
+        skills.append(skill4)
 
     needs = []
     need = ProjectNeed()
