@@ -113,7 +113,10 @@ pub async fn get_hubspot_deals() -> Result<HubspotHeader, &'static str> {
 
 	println!("...Filtered. Remaining with {}", header.deals.len());
 
-	println!("--------------------------------------------------------------- {:?}", header.deals);
+	println!(
+		"--------------------------------------------------------------- {:?}",
+		header.deals
+	);
 
 	Ok(header)
 }
@@ -156,7 +159,7 @@ async fn do_process2(
 
 				let palvelut = match &b2.properties.palvelut {
 					Some(x) => Some(x.value.clone()),
-					None => None
+					None => None,
 				};
 
 				if b.name != b2.properties.dealname.value || b.description != palvelut {
@@ -166,8 +169,13 @@ async fn do_process2(
 						b2.properties.dealname.value.clone()
 					);
 
-					let _ = update_hula_project(config, b.id.clone(), b2.properties.dealname.value.clone(), palvelut)
-						.await;
+					let _ = update_hula_project(
+						config,
+						b.id.clone(),
+						b2.properties.dealname.value.clone(),
+						palvelut,
+					)
+					.await;
 				}
 			}
 		}

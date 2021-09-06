@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::hulautils::HulaConfig;
 use crate::hulautils::{get_hula_projects, HulaProject};
-use crate::models::odoo_project::OdooProject;
 use crate::models::hula_call_log::HulaCallLog;
 use crate::models::odoo_call_log::OdooCallLog;
+use crate::models::odoo_project::OdooProject;
 
 use std::process::Command;
 
@@ -138,7 +138,7 @@ pub async fn do_process(config: &HulaConfig, conn: &PgConnection) -> Result<(), 
 
 	let odoo_deals = get_odoo_deals(&conn, last_run).await?;
 	trace!("No projects from odoo.");
-	
+
 	if odoo_deals.len() > 0 {
 		trace!("Got Odoo unprocessed projects: {}", odoo_deals.len());
 
@@ -158,12 +158,15 @@ pub async fn do_process(config: &HulaConfig, conn: &PgConnection) -> Result<(), 
 	Ok(())
 }
 
-async fn get_odoo_deals(conn: &PgConnection, last_run: Option<i64>) -> Result<Vec<OdooProjectHeader>, String> {
+async fn get_odoo_deals(
+	conn: &PgConnection,
+	last_run: Option<i64>,
+) -> Result<Vec<OdooProjectHeader>, String> {
 	let c = get_config();
 
-	let last_run :String = match last_run {
+	let last_run: String = match last_run {
 		Some(x) => x.to_string(),
-		None => "".to_string()
+		None => "".to_string(),
 	};
 
 	trace!(
@@ -182,13 +185,13 @@ async fn get_odoo_deals(conn: &PgConnection, last_run: Option<i64>) -> Result<Ve
 			&c.odoo_db,
 			&c.odoo_uid,
 			&c.odoo_pw,
-			&last_run
+			&last_run,
 		])
 		.output();
 
 	let a = match a {
 		Ok(x) => x,
-		Err(e) => { 
+		Err(e) => {
 			let text = format!("Python3 failed: {}", e);
 
 			let _ = write_odoo_call_log(
@@ -201,10 +204,12 @@ async fn get_odoo_deals(conn: &PgConnection, last_run: Option<i64>) -> Result<Ve
 				Some(&last_run),
 				None,
 				false,
-				Some(&text)).await;
+				Some(&text),
+			)
+			.await;
 
 			error!("{}", text);
-				
+
 			return Err(text);
 		}
 	};
@@ -249,7 +254,9 @@ async fn get_odoo_deals(conn: &PgConnection, last_run: Option<i64>) -> Result<Ve
 				Some(&last_run),
 				None,
 				false,
-				Some(&format!("JSON was not well-formatted: {}", e))).await;
+				Some(&format!("JSON was not well-formatted: {}", e)),
+			)
+			.await;
 
 			return Err(format!("JSON was not well-formatted: {}", e));
 		}
@@ -265,7 +272,9 @@ async fn get_odoo_deals(conn: &PgConnection, last_run: Option<i64>) -> Result<Ve
 		Some(&last_run),
 		None,
 		true,
-		Some(&s)).await;
+		Some(&s),
+	)
+	.await;
 
 	Ok(json)
 }
@@ -313,7 +322,9 @@ async fn put_odoo_matches(conn: &PgConnection, matches: Vec<ProjectMatch>) -> Re
 				Some(&odoo_matches),
 				None,
 				false,
-				Some(&format!("Python3 failed: {}", e))).await;
+				Some(&format!("Python3 failed: {}", e)),
+			)
+			.await;
 
 			return Err(format!("Python3 failed: {}", e));
 		}
@@ -329,7 +340,9 @@ async fn put_odoo_matches(conn: &PgConnection, matches: Vec<ProjectMatch>) -> Re
 		Some(&odoo_matches),
 		None,
 		true,
-		None).await;
+		None,
+	)
+	.await;
 
 	Ok(())
 }
@@ -465,10 +478,11 @@ pub async fn insert_hula_project_odoo(
 					&format!("{:?}", &data),
 					file.status().as_u16().into(),
 					&format!("{}", &file.text().await.unwrap()),
-				).await;
+				)
+				.await;
 
 				return Err("11");
-				}
+			}
 			file
 		}
 		Err(e) => {
@@ -481,13 +495,14 @@ pub async fn insert_hula_project_odoo(
 				&format!("{:?}", &data),
 				0,
 				&format!("{}", &e),
-			).await;
+			)
+			.await;
 
 			return Err("1");
 		}
 	};
-	
-	let status :i32 = response.status().as_u16().into();
+
+	let status: i32 = response.status().as_u16().into();
 
 	let jiison = response.json().await;
 
@@ -503,7 +518,8 @@ pub async fn insert_hula_project_odoo(
 				&format!("{:?}", &data),
 				e.status().unwrap().as_u16().into(),
 				&format!("{}", &e),
-			).await;
+			)
+			.await;
 
 			return Err("2");
 		}
@@ -520,7 +536,8 @@ pub async fn insert_hula_project_odoo(
 		&format!("{:?}", &data),
 		status,
 		&format!("{:?}", &hula_project),
-	).await;
+	)
+	.await;
 
 	Ok(hula_project)
 }
@@ -562,10 +579,11 @@ pub async fn update_hula_project_odoo(
 					&format!("{:?}", &data),
 					file.status().as_u16().into(),
 					&format!("{}", &file.text().await.unwrap()),
-				).await;
+				)
+				.await;
 
 				return Err("11");
-				}
+			}
 			file
 		}
 		Err(e) => {
@@ -578,13 +596,14 @@ pub async fn update_hula_project_odoo(
 				&format!("{:?}", &data),
 				0,
 				&format!("{}", &e),
-			).await;
+			)
+			.await;
 
 			return Err("1");
 		}
 	};
 
-	let status :i32 = response.status().as_u16().into();
+	let status: i32 = response.status().as_u16().into();
 
 	let jiison = response.json().await;
 
@@ -600,7 +619,8 @@ pub async fn update_hula_project_odoo(
 				&format!("{:?}", &data),
 				e.status().unwrap().as_u16().into(),
 				&format!("{}", &e),
-			).await;
+			)
+			.await;
 
 			return Err("2");
 		}
@@ -615,7 +635,8 @@ pub async fn update_hula_project_odoo(
 		&format!("{:?}", &data),
 		status,
 		&format!("{:?}", &jiison2),
-	).await;
+	)
+	.await;
 
 	let hula_project: HulaProjectStructureResponse = jiison2;
 
@@ -634,9 +655,9 @@ async fn write_hula_log(
 ) -> Result<(), &'static str> {
 	use crate::schema::hula_call_log::dsl::hula_call_log;
 
-	let hula_id :Option<uuid::Uuid> = match hula_id {
+	let hula_id: Option<uuid::Uuid> = match hula_id {
 		Some(id) => Some(uuid::Uuid::parse_str(id).expect("uuid parsing failed")),
-		None => None
+		None => None,
 	};
 
 	let new_log = HulaCallLog {
@@ -649,14 +670,14 @@ async fn write_hula_log(
 		status: status,
 		response: response.to_string(),
 		updated_by: "hulasync".to_string(),
-		updated_at: chrono::Local::now().naive_local()
+		updated_at: chrono::Local::now().naive_local(),
 	};
 
 	let rows_inserted = diesel::insert_into(hula_call_log)
 		.values(&new_log)
 		.get_result::<HulaCallLog>(conn);
 
-	let _ :Option<&HulaCallLog> = match &rows_inserted {
+	let _: Option<&HulaCallLog> = match &rows_inserted {
 		Ok(a) => Some(a),
 		Err(e) => {
 			trace!("ERROR. {:?}", e);
@@ -693,14 +714,14 @@ async fn write_odoo_call_log(
 		ok: ok,
 		response: Some(response.unwrap_or_default().to_string()),
 		updated_by: "hulasync".to_string(),
-		updated_at: chrono::Local::now().naive_local()
+		updated_at: chrono::Local::now().naive_local(),
 	};
 
 	let rows_inserted = diesel::insert_into(odoo_call_log)
 		.values(&new_log)
 		.get_result::<OdooCallLog>(conn);
 
-	let _ :Option<&OdooCallLog> = match &rows_inserted {
+	let _: Option<&OdooCallLog> = match &rows_inserted {
 		Ok(a) => Some(a),
 		Err(e) => {
 			error!("ERROR. {:?}", e);
@@ -711,14 +732,12 @@ async fn write_odoo_call_log(
 	return Ok(());
 }
 
-async fn startup(
-	conn: &PgConnection,
-) -> Result<Option<i64>, &'static str> {
-	use crate::schema::odoo_call_log::dsl::{odoo_call_log, updated_at as odoo_updated_at, ok};
+async fn startup(conn: &PgConnection) -> Result<Option<i64>, &'static str> {
 	use crate::schema::hula_call_log::dsl::{hula_call_log, updated_at as hula_updated_at};
+	use crate::schema::odoo_call_log::dsl::{odoo_call_log, ok, updated_at as odoo_updated_at};
 
 	let discard_limit = chrono::offset::Utc::now().naive_utc() - chrono::Duration::days(7);
-	
+
 	let _ = diesel::delete(odoo_call_log.filter(odoo_updated_at.lt(discard_limit))).execute(conn);
 	let _ = diesel::delete(hula_call_log.filter(hula_updated_at.lt(discard_limit))).execute(conn);
 
@@ -738,6 +757,6 @@ async fn startup(
 			return Ok(Some(lag.num_minutes() + 2));
 		}
 	}
-		
+
 	Ok(None)
 }

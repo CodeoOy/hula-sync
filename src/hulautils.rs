@@ -17,7 +17,6 @@ pub struct HulaUpdateProject {
 	pub is_hidden: bool,
 }
 
-
 #[derive(Deserialize, Serialize, Debug)]
 pub struct HulaApiProject {
 	pub name: String,
@@ -126,8 +125,12 @@ pub async fn insert_hula_project(
 	Ok(project.id)
 }
 
-pub async fn update_hula_project(	config: &HulaConfig,
-		project_id: String, name: String, description: Option<String>) -> Result<(), &'static str> {
+pub async fn update_hula_project(
+	config: &HulaConfig,
+	project_id: String,
+	name: String,
+	description: Option<String>,
+) -> Result<(), &'static str> {
 	let request_url = format!("{}/api/projects/{}", config.hula_url, project_id.clone());
 	println!("Calling {}", request_url);
 
