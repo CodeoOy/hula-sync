@@ -97,6 +97,21 @@ for cc in c:
     else:
             cc['x_studio_level_1'] = cc['x_studio_level_1'][1]                        
 
+    if isinstance(cc['x_studio_level_2'], bool):
+            cc['x_studio_level_2'] = None
+    else:
+            cc['x_studio_level_2'] = cc['x_studio_level_2'][1]                        
+
+    if isinstance(cc['x_studio_level_3'], bool):
+            cc['x_studio_level_3'] = None
+    else:
+            cc['x_studio_level_3'] = cc['x_studio_level_3'][1]                        
+
+    if isinstance(cc['x_studio_level_4'], bool):
+            cc['x_studio_level_4'] = None
+    else:
+            cc['x_studio_level_4'] = cc['x_studio_level_4'][1]                        
+
     if isinstance(cc['x_studio_end'], bool):
             cc['x_studio_end'] = None
 
@@ -113,7 +128,7 @@ for cc in c:
     if cc['x_studio_skill_2']:
         skill2 = ProjectNeedSkill()
         skill2.skill = cc['x_studio_skill_2'][1]
-        skill2.level = cc['x_studio_level_2'][1]
+        skill2.level = cc['x_studio_level_2']
         skill2.min_years = cc['x_studio_minimum_years_2'] 
         skill2.mandatory = cc['x_studio_mandatory_2']
         skills.append(skill2)
@@ -129,7 +144,7 @@ for cc in c:
     if cc['x_studio_skill_4']:
         skill4 = ProjectNeedSkill()
         skill4.skill = cc['x_studio_skill_4'][1]
-        skill4.level = cc['x_studio_level_4'][1]
+        skill4.level = cc['x_studio_level_4']
         skill4.min_years = cc['x_studio_minimum_years_4'] 
         skill4.mandatory = cc['x_studio_mandatory_4']
         skills.append(skill4)

@@ -11,15 +11,9 @@ pub struct HulaProject {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct HulaUpdateProject {
-	pub name: String,
-	pub description: Option<String>,
-	pub is_hidden: bool,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
 pub struct HulaApiProject {
 	pub name: String,
+	pub description: Option<String>,
 	pub is_hidden: bool,
 }
 
@@ -82,12 +76,14 @@ pub async fn get_hula_projects(config: &HulaConfig) -> Result<Vec<HulaProject>, 
 pub async fn insert_hula_project(
 	config: &HulaConfig,
 	name: String,
+	description: Option<String>,
 ) -> Result<String, &'static str> {
 	let request_url = format!("{}/api/projects", config.hula_url);
 	println!("Calling {}", request_url);
 
 	let project = HulaApiProject {
 		name: name,
+		description: description,
 		is_hidden: false,
 	};
 
@@ -134,7 +130,7 @@ pub async fn update_hula_project(
 	let request_url = format!("{}/api/projects/{}", config.hula_url, project_id.clone());
 	println!("Calling {}", request_url);
 
-	let project = HulaUpdateProject {
+	let project = HulaApiProject {
 		description: description,
 		is_hidden: false,
 		name: name,

@@ -188,7 +188,12 @@ async fn do_process2(
 		if h.any(|x| x.hubspot_id == deal.dealId.to_string()) == false {
 			println!("inserting {:?}", deal.properties.dealname.value);
 
-			let added = insert_hula_project(&config, deal.properties.dealname.value.clone()).await;
+			let palvelut = match &deal.properties.palvelut {
+				Some(x) => Some(x.value.clone()),
+				None => None,
+			};
+
+			let added = insert_hula_project(&config, deal.properties.dealname.value.clone(), palvelut).await;
 
 			let my_uuid = Uuid::parse_str(&added.expect("no way")).expect("crash here");
 
