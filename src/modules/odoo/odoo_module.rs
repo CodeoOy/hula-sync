@@ -734,7 +734,7 @@ async fn write_odoo_call_log(
 
 async fn startup(conn: &PgConnection) -> Result<Option<i64>, &'static str> {
 	use crate::schema::hula_call_log::dsl::{hula_call_log, updated_at as hula_updated_at};
-	use crate::schema::odoo_call_log::dsl::{odoo_call_log, ok, updated_at as odoo_updated_at};
+	use crate::schema::odoo_call_log::dsl::{odoo_call_log, ok, param5, updated_at as odoo_updated_at};
 
 	let discard_limit = chrono::offset::Utc::now().naive_utc() - chrono::Duration::days(7);
 
@@ -743,6 +743,7 @@ async fn startup(conn: &PgConnection) -> Result<Option<i64>, &'static str> {
 
 	let log = odoo_call_log
 		.filter(ok.eq(true))
+		.filter(param5.is_null())
 		.order(odoo_updated_at.desc())
 		.first::<OdooCallLog>(conn)
 		.optional()
