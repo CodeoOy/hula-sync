@@ -743,7 +743,7 @@ async fn startup(conn: &PgConnection) -> Result<Option<i64>, &'static str> {
 
 	let log = odoo_call_log
 		.filter(ok.eq(true))
-		.filter(param5.is_null())
+		.filter(param5.eq(""))
 		.order(odoo_updated_at.desc())
 		.first::<OdooCallLog>(conn)
 		.optional()
