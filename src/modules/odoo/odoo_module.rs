@@ -743,6 +743,13 @@ async fn startup(conn: &PgConnection) -> Result<Option<i64>, &'static str> {
 
 	let log = odoo_call_log
 		.filter(ok.eq(true))
+		.order(odoo_updated_at.desc())
+		.first::<OdooCallLog>(conn)
+		.optional()
+		.unwrap();
+
+	let log_full = odoo_call_log
+		.filter(ok.eq(true))
 		.filter(param5.eq(""))
 		.order(odoo_updated_at.desc())
 		.first::<OdooCallLog>(conn)
@@ -750,8 +757,12 @@ async fn startup(conn: &PgConnection) -> Result<Option<i64>, &'static str> {
 		.unwrap();
 
 	if let Some(log) = log {
-		let x = chrono::Datelike::num_days_from_ce(&log.updated_at);
+		let mut x = chrono::Datelike::num_days_from_ce(&log.updated_at);
 		let y = chrono::Datelike::num_days_from_ce(&chrono::Utc::now().naive_utc());
+
+		if let Some(log_full) = log_full {
+			x = chrono::Datelike::num_days_from_ce(&log_full.updated_at);
+		}
 
 		if x == y {
 			let lag = chrono::Utc::now().naive_utc() - log.updated_at;
