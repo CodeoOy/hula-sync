@@ -1,6 +1,7 @@
 use chrono::NaiveDate;
 use diesel::{prelude::*, PgConnection};
 use log::{error, trace};
+use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 
 use crate::hulautils::HulaConfig;
@@ -10,7 +11,6 @@ use crate::models::odoo_call_log::OdooCallLog;
 use crate::models::odoo_project::OdooProject;
 
 use std::process::Command;
-
 use std::str;
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -63,6 +63,12 @@ pub struct HulaProjectStructureNeedSkillData {
 	pub min_years: Option<f64>,
 	pub max_years: Option<f64>,
 	pub mandatory: bool,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct Skill {
+	pub id: uuid::Uuid,
+	pub label: String,
 }
 
 impl From<&OdooProjectHeader> for HulaProjectStructureData {
@@ -136,6 +142,8 @@ pub async fn do_process(config: &HulaConfig, conn: &PgConnection) -> Result<(), 
 		trace!("Last run was: {}", &last_run);
 	}
 
+	sync_skills_to_odoo(config, conn).await?;
+
 	let odoo_deals = get_odoo_deals(&conn, last_run).await?;
 	trace!("No projects from odoo.");
 
@@ -156,6 +164,159 @@ pub async fn do_process(config: &HulaConfig, conn: &PgConnection) -> Result<(), 
 
 	trace!("Odoo interface done.");
 	Ok(())
+}
+
+async fn sync_skills_to_odoo(config: &HulaConfig, conn: &PgConnection) -> Result<(), String> {
+	let hula_skills = get_skills_from_hula(config).await?;
+	put_skills_to_odoo(&hula_skills, conn).await?;
+	Ok(())
+}
+
+async fn get_skills_from_hula(config: &HulaConfig) -> Result<Vec<Skill>, String> {
+	let request_url = format!("{}/api/skills", config.hula_url);
+	let client = reqwest::Client::new();
+	let response = match client
+		.get(&request_url)
+		.header("Cookie", format!("auth={}", config.cookie))
+		.send()
+		.await
+	{
+		Ok(res) => res,
+		Err(err) => return Err(err.to_string()),
+	};
+
+	if response.status() == StatusCode::NO_CONTENT {
+		return Ok(Vec::new());
+	}
+
+	let data = match response.error_for_status() {
+		Ok(r) => r.json::<Vec<Skill>>().await,
+		Err(err) => return Err(err.to_string()),
+	};
+
+	match data {
+		Ok(data) => Ok(data),
+		Err(err) => Err(err.to_string()),
+	}
+}
+
+async fn put_skills_to_odoo(skills: &Vec<Skill>, conn: &PgConnection) -> Result<(), String> {
+	let skills_json = match serde_json::to_string(skills) {
+		Ok(it) => it,
+		Err(err) => return Err(err.to_string()),
+	};
+
+	let result = run_odoo_script(
+		String::from("src/modules/odoo/python/odoo_put_skills.py"),
+		conn,
+		&[skills_json],
+	)
+	.await;
+
+	match result {
+		Ok(output) => println!("Following skills were created in Odoo: {}", output),
+		Err(e) => return Err(e),
+	};
+
+	Ok(())
+}
+
+pub async fn run_odoo_script(
+	script_path: String,
+	conn: &PgConnection,
+	additional_params: &[String],
+) -> Result<String, String> {
+	let c = get_config();
+
+	let mut args = Vec::from([&c.odoo_url, &c.odoo_db, &c.odoo_uid, &c.odoo_pw]);
+	for param in additional_params {
+		args.push(&param)
+	}
+
+	let mut cmd = script_path.clone();
+	for arg in &args {
+		cmd.push_str(&format!(" {}", arg))
+	}
+
+	trace!("Running: python3 {}", cmd);
+
+	let mut python_args = Vec::from([&script_path]);
+	python_args.extend(args);
+	let output = Command::new("python3").args(&python_args).output();
+
+	// stdout, stderr
+	let result = match output {
+		Ok(x) => match str::from_utf8(&x.stdout) {
+			Ok(it) => {
+				// Check and handle stderr
+				let stderr: Option<String> = match str::from_utf8(&x.stderr) {
+					Ok(v) => {
+						if v.is_empty() {
+							None
+						} else {
+							Some(v.to_string())
+						}
+					}
+					Err(er) => Some(format!(
+						"Invalid UTF-8 sequence on stderr: {}",
+						er.to_string()
+					)),
+				};
+				// stdout, stderr
+				(Some(it.to_string()), stderr)
+			}
+			Err(e) => (
+				None,
+				Some(format!(
+					"Invalid UTF-8 sequence on stdout: {}",
+					e.to_string()
+				)),
+			),
+		},
+		Err(e) => (None, Some(format!("Python3 failed: {}", e.to_string()))),
+	};
+
+	let output_str = result.0;
+	let error = result.1;
+
+	if error.is_some() {
+		error!("{}", error.clone().unwrap())
+	}
+
+	let ok = output_str.is_some();
+
+	let result = match output_str.clone() {
+		Some(str) => str,
+		_ => {
+			if error.is_some() {
+				error.unwrap()
+			} else {
+				format!("")
+			}
+		}
+	};
+
+	let _ = write_odoo_call_log(
+		&conn,
+		&script_path,
+		Some(&c.odoo_url),
+		Some(&c.odoo_db),
+		Some(&c.odoo_uid),
+		Some(&c.odoo_pw),
+		match additional_params.get(0) {
+			Some(s) => Some(&s[..]),
+			None => None,
+		},
+		match additional_params.get(1) {
+			Some(s) => Some(&s[..]),
+			None => None,
+		},
+		ok,
+		Some(&result),
+	)
+	.await;
+
+	Ok(output_str.unwrap())
 }
 
 async fn get_odoo_deals(
@@ -734,7 +895,9 @@ async fn write_odoo_call_log(
 
 async fn startup(conn: &PgConnection) -> Result<Option<i64>, &'static str> {
 	use crate::schema::hula_call_log::dsl::{hula_call_log, updated_at as hula_updated_at};
-	use crate::schema::odoo_call_log::dsl::{odoo_call_log, ok, param5, updated_at as odoo_updated_at};
+	use crate::schema::odoo_call_log::dsl::{
+		odoo_call_log, ok, param5, updated_at as odoo_updated_at,
+	};
 
 	let discard_limit = chrono::offset::Utc::now().naive_utc() - chrono::Duration::days(7);
 
