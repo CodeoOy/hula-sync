@@ -169,6 +169,7 @@ pub async fn do_process(config: &HulaConfig, conn: &PgConnection) -> Result<(), 
 async fn sync_skills_to_odoo(config: &HulaConfig, conn: &PgConnection) -> Result<(), String> {
 	let hula_skills = get_skills_from_hula(config).await?;
 	put_skills_to_odoo(&hula_skills, conn).await?;
+	generate_skills_to_odoo_projects(conn).await?;
 	Ok(())
 }
 
@@ -215,6 +216,25 @@ async fn put_skills_to_odoo(skills: &Vec<Skill>, conn: &PgConnection) -> Result<
 
 	match result {
 		Ok(output) => println!("Following skills were created in Odoo: {}", output),
+		Err(e) => return Err(e),
+	};
+
+	Ok(())
+}
+
+async fn generate_skills_to_odoo_projects(conn: &PgConnection) -> Result<(), String> {
+	let result = run_odoo_script(
+		String::from("src/modules/odoo/python/odoo_fill_project_skills.py"),
+		conn,
+		&[],
+	)
+	.await;
+
+	match result {
+		Ok(output) => println!(
+			"Skills were generated for the following Odoo leads: {}",
+			output
+		),
 		Err(e) => return Err(e),
 	};
 
