@@ -169,7 +169,7 @@ pub async fn do_process(config: &HulaConfig, conn: &PgConnection) -> Result<(), 
 async fn sync_skills_to_odoo(config: &HulaConfig, conn: &PgConnection) -> Result<(), String> {
 	let hula_skills = get_skills_from_hula(config).await?;
 	put_skills_to_odoo(&hula_skills, conn).await?;
-	generate_skills_to_odoo_projects(conn).await?;
+	generate_skills_to_odoo_projects(&hula_skills, conn).await?;
 	Ok(())
 }
 
@@ -222,11 +222,16 @@ async fn put_skills_to_odoo(skills: &Vec<Skill>, conn: &PgConnection) -> Result<
 	Ok(())
 }
 
-async fn generate_skills_to_odoo_projects(conn: &PgConnection) -> Result<(), String> {
+async fn generate_skills_to_odoo_projects(skills: &Vec<Skill>, conn: &PgConnection) -> Result<(), String> {
+	let skills_json = match serde_json::to_string(skills) {
+		Ok(it) => it,
+		Err(err) => return Err(err.to_string()),
+	};
+
 	let result = run_odoo_script(
 		String::from("src/modules/odoo/python/odoo_fill_project_skills.py"),
 		conn,
-		&[],
+		&[skills_json],
 	)
 	.await;
 

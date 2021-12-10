@@ -1,4 +1,6 @@
-import sys
+import sys 
+import json
+from typing import Optional, List
 import jsonpickle
 import ahocorasick
 
@@ -6,6 +8,7 @@ url = str(sys.argv[1])
 db = str(sys.argv[2])
 username = str(sys.argv[3])
 password = str(sys.argv[4])
+hula_skills = json.loads(str(sys.argv[5]))
 
 import xmlrpc.client
 
@@ -13,14 +16,27 @@ common = xmlrpc.client.ServerProxy('{}/xmlrpc/2/common'.format(url))
 uid = common.authenticate(db, username, password, {})
 models = xmlrpc.client.ServerProxy('{}/xmlrpc/2/object'.format(url))
 
+class MergedSkill(object):
+    def __init__(self, hula_id: str, odoo_id: str, label: str, aliases: Optional[List[str]]) -> None:
+        self.hula_id = hula_id
+        self.odoo_id = odoo_id
+        self.label = label
+        self.aliases = aliases
 
-def find_skills(texts, skills):
+    hula_id: str
+    odoo_id: str
+    label_id: str
+    aliases = Optional[List[str]]
+
+
+def find_skills(texts, merged_skills: List[MergedSkill]):
     A = ahocorasick.Automaton()
 
-    for skill in skills:
-        skill_label = skill['x_name'].lower()
-        skill_id = skill['id']
-        A.add_word(skill_label, skill_id)
+    for skill in merged_skills:
+        A.add_word(skill.label, skill.odoo_id)
+        if skill.aliases:
+            for alias in skill.aliases:
+                A.add_word(alias, skill.odoo_id)
 
     A.make_automaton()
 
@@ -63,11 +79,31 @@ def get_mail_texts(ids):
     return texts
 
 
+def merge_skills(hula_skills, odoo_skills):
+    hula_dict = {s['label'].lower(): s for s in hula_skills}
+    odoo_dict = {s['x_name'].lower(): s for s in odoo_skills}
+
+    merged_skills = []
+    for label in odoo_dict.keys():
+        odoo_skill = odoo_dict[label]
+        hula_skill = hula_dict.get(label, None)
+        if not hula_skill:
+            continue
+
+        merged_skills.append(MergedSkill(
+            hula_id=hula_skill['id'],
+            odoo_id=odoo_skill['id'],
+            label=label,
+            aliases=hula_skill.get('aliases'))
+        )
+
+    return merged_skills
+
+
 def main():
     leads = models.execute_kw(db, uid, password,
         'crm.lead', 'search_read',
         [[['x_studio_disable_skill_generation', '!=', True]]],
-        # [[]],
         { 'fields': [
             'id', 
             'name',
@@ -78,8 +114,10 @@ def main():
         ]})
 
 
-    skills = models.execute_kw(db, uid, password,
+    odoo_skills = models.execute_kw(db, uid, password,
         'x_hula_skill', 'search_read', [], {'fields': ['id', 'display_name', 'x_name']})
+
+    merged_skills = merge_skills(hula_skills, odoo_skills)
 
     for lead in leads:
         mail_texts = get_mail_texts(lead['message_ids'])
@@ -92,7 +130,7 @@ def main():
             lead['x_studio_description'],
             *mail_texts]
 
-        found_skills = find_skills(texts, skills)
+        found_skills = find_skills(texts, merged_skills)
         update_lead(lead['id'], found_skills)
 
     lead_names = [x['name'] for x in leads]
