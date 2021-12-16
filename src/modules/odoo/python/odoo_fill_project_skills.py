@@ -33,10 +33,10 @@ def find_skills(texts, merged_skills: List[MergedSkill]):
     A = ahocorasick.Automaton()
 
     for skill in merged_skills:
-        A.add_word(skill.label, skill.odoo_id)
+        A.add_word(skill.label.lower(), skill.odoo_id)
         if skill.aliases:
             for alias in skill.aliases:
-                A.add_word(alias, skill.odoo_id)
+                A.add_word(alias.lower(), skill.odoo_id)
 
     A.make_automaton()
 
