@@ -69,6 +69,7 @@ pub struct HulaProjectStructureNeedSkillData {
 pub struct Skill {
 	pub id: uuid::Uuid,
 	pub label: String,
+	pub aliases: Vec<String>
 }
 
 impl From<&OdooProjectHeader> for HulaProjectStructureData {
