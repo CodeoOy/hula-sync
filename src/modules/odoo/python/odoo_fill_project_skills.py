@@ -1,5 +1,6 @@
 import sys 
 import json
+from datetime import datetime, date
 from typing import Optional, List
 import jsonpickle
 import ahocorasick
@@ -30,6 +31,9 @@ class MergedSkill(object):
 
 
 def find_skills(texts, merged_skills: List[MergedSkill]):
+    if not merged_skills:
+        return []
+
     A = ahocorasick.Automaton()
 
     for skill in merged_skills:
@@ -52,31 +56,56 @@ def find_skills(texts, merged_skills: List[MergedSkill]):
     return list(dict.fromkeys(found_skill_ids).keys())
 
 
-def update_lead(id, found_skill_ids):
+def update_lead(id, found_skill_ids=[], project_name=None, begin_date=None):
     found_skills_count = len(found_skill_ids)
-    skill_fields = {}
+    updated_fields = {}
 
     for idx in range(4):
         # Note: 'None' value is not accepted by Odoo by default, False used instead
         skill_id = found_skill_ids[idx] if idx < found_skills_count else False
-        skill_fields[f'x_studio_skill_{idx+1}'] = skill_id        
+        updated_fields[f'x_studio_skill_{idx+1}'] = skill_id
+
+    if project_name is not None:
+        updated_fields['x_studio_project_name'] = project_name
+
+    if begin_date is not None:
+        updated_fields['x_studio_begin'] = begin_date
 
     models.execute_kw(db, uid, password, 'crm.lead', 'write', [[id],
             {
                 'x_studio_disable_skill_generation': True,
-                **skill_fields
+                **updated_fields
             }])
 
 
-def get_mail_texts(ids):
-    mails = (models.execute_kw(db, uid, password, 'mail.message', 'read', [ids], {'fields': ['id', 'subject', 'body']})
+def get_mails(ids):
+    return (models.execute_kw(db, uid, password, 'mail.message', 'read', [ids], {'fields': ['id', 'date', 'subject', 'body']})
         if ids
         else [])
+
+
+def get_mail_texts(mails):
     texts = []
     for mail in mails:
         texts.append(mail['subject'])
         texts.append(mail['body'])
     return texts
+
+
+def generate_begin_date(lead):
+    if lead['x_studio_begin']:
+        return None
+
+    return date.today().isoformat()
+
+
+def generate_project_name(lead):
+    if lead['x_studio_project_name']:
+        return None
+
+    subject = lead['name']
+    date = datetime.today().strftime('%-d.%-m.%Y')
+    return f"{subject} {date}"
 
 
 def merge_skills(hula_skills, odoo_skills):
@@ -108,6 +137,7 @@ def main():
             'id', 
             'name',
             'description',
+            'x_studio_begin',
             'x_studio_project_name', 
             'x_studio_description',
             'message_ids'
@@ -120,7 +150,8 @@ def main():
     merged_skills = merge_skills(hula_skills, odoo_skills)
 
     for lead in leads:
-        mail_texts = get_mail_texts(lead['message_ids'])
+        mails = get_mails(lead['message_ids'])
+        mail_texts = get_mail_texts(mails)
         # Note: order is significant: first search skill labels
         # from titles and descriptions, then from message contents. 
         texts = [
@@ -131,7 +162,10 @@ def main():
             *mail_texts]
 
         found_skills = find_skills(texts, merged_skills)
-        update_lead(lead['id'], found_skills)
+
+        project_name = generate_project_name(lead)
+        begin_date = generate_begin_date(lead)
+        update_lead(lead['id'], found_skills, project_name=project_name, begin_date=begin_date)
 
     lead_names = [x['name'] for x in leads]
     print(jsonpickle.encode(lead_names, unpicklable=False))
